@@ -8,8 +8,12 @@
     python render_video.py <scene.py> [--quality medium] [--style khan_academy]
                            [--format mp4] [--timeout 900] [--out-dir <dir>]
 
-推荐用共享环境的解释器运行:
-    D:\\software\\uv\\envs\\geo\\Scripts\\python_direct.exe
+推荐用装了 Manim 的那个环境跑（脚本自身不需要 Manim，但要import引擎包）：
+    D:\\software\\uv\\envs\\py314-cpu\\Scripts\\python_direct.exe
+
+注意：脚本会用 MAMCP_PYTHON 指定「真正跑 Manim 的解释器」。该路径必须存在，
+否则引擎会静默回退到 PATH 里的 python（多半没装 Manim，表现为
+`No module named 'manim'`）。换环境时必须同步改 ENGINE_PYTHON。
 """
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ import sys
 
 REPO = r"D:\github\math-animation-mcp"
 DEFAULT_OUT = os.path.join(REPO, "animation_output")
-ENGINE_PYTHON = r"D:\software\uv\envs\geo\Scripts\python_direct.exe"
+ENGINE_PYTHON = r"D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 
 
 def main() -> int:
@@ -36,6 +40,13 @@ def main() -> int:
     ap.add_argument("--font", default="LXGW WenKai GB",
                     help="Text()/MarkupText() 的默认中文字体")
     args = ap.parse_args()
+
+    if not os.path.exists(ENGINE_PYTHON):
+        sys.exit(
+            f"[FATAL] MAMCP_PYTHON 指向的解释器不存在：{ENGINE_PYTHON}\n"
+            f"引擎会静默回退到 PATH 里的 python（多半没装 Manim）。\n"
+            f"请改本文件顶部的 ENGINE_PYTHON，指向装了 Manim 的解释器。"
+        )
 
     os.environ.setdefault("MAMCP_FONT", args.font)
     os.environ.setdefault("MAMCP_TMP_DIR", os.path.join(REPO, "_render_tmp"))

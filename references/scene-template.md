@@ -75,6 +75,81 @@ class MyScene(Scene):          # 类名必须 ASCII，渲染器靠它取场景�
 
 ## 常用片段
 
+### 卡片式布局（流程图 / 对比图最好用）
+
+⚠️ **本节两个坑都是 2026-10-07 做 DivLM 论文动画时实际踩到的**，
+症状是代码不报错、渲染成功，但画面全错。改完一定抽帧看图。
+
+```python
+INK = "#21242C"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"
+# 中文字体：讲论文/学术内容用 Noto Sans SC（黑体，正式）；讲基础数学用 LXGW WenKai GB（楷体，教材感）。
+# ⚠️ family 名必须精确匹配，漏后缀会静默回退到 Sans。渲染日志里搜 "falling back" 必查。
+# ⚠️ 这两个都是**用户级字体**（AppData\Local\Microsoft\Windows\Fonts），
+#    不在 C:\Windows\Fonts —— 用 windows-font-finder-yashu 技能查，别只扫系统目录。
+FONT = "Noto Sans SC"
+
+def card(w, h, fill="#F4F6FB", stroke=GRIDC, radius=0.18):
+    r = RoundedRectangle(width=w, height=h, corner_radius=radius)
+    r.set_fill(fill, opacity=1.0).set_stroke(stroke, width=1.4)
+    return r
+
+
+def fill_card(c, items):
+    """往已定位的卡片里塞文字。items = [(文本, 字号, 颜色, 相对中心纵向偏移), ...]
+
+    必须先 card(...).move_to(...) 定位，再调 fill_card。
+    """
+    cx, cy, _ = c.get_center()
+    for txt, size, color, dy in items:
+        c.add(Text(txt, font=FONT, font_size=size, color=color)
+              .move_to([cx, cy + dy, 0]))
+    return c
+
+
+# 用法：先定位 → 再填字→ 最后整体 arrange
+a = card(2.9, 2.1).move_to([-3.55, 0.55, 0])
+fill_card(a, [("基础模型", 25, INK, 0.5),
+              ("W0", 32, BLUE, -0.08),
+              ("指令遵循正常", 18, GRAY, -0.68)])
+
+b = card(2.9, 2.1).move_to([0.0, 0.55, 0])
+fill_card(b, [("创意写作预训练", 24, INK, 0.5)])
+
+plus = Text("+", font=FONT, font_size=34, color=GRAY).move_to([-1.75, 0.55, 0])
+row = VGroup(a, plus, b).arrange(RIGHT, buff=0.42)
+```
+
+**坑 1｜`move_to([0, y, 0])` 不是"卡片内偏移"，是场景坐标**
+写 `c.add(Text("标题", ...).move_to([0, 0.5, 0]))` 会让所有卡片文字
+都跑到**画面原点**叠成一团。必须先取 `c.get_center()` 换算。
+`VGroup.arrange()` 之后组内绝对坐标会错位，所以**填字要在 arrange 之前，
+或 arrange 之后按最终 `get_center()` 重算**。
+
+**坑 2｜`Line` / `Arrow` 端点必须三维**
+
+```python
+Line([-1, 0.2, 0], [1, 0.2, 0])# ✅
+Arrow([-3.4, 1.0, 0], [-2.28, 1.2, 0])               # ✅
+Line([-1, 0.2], [1, 0.2])                            # ❌ ValueError (1,2)→(1,3)
+```
+
+**坑 3｜`always_redraw` 的回调零参数**
+
+```python
+def build_bars():                # ✅
+    ...
+bars = always_redraw(build_bars)
+
+def build_bars(m):               # ❌ TypeError: missing 1 required positional arg
+```
+
+**坑 4｜容器类型先定好**
+
+```python
+cards = VGroup(); cards.add(c)        # ✅ VGroup 只有 add()
+cards = []; cards.append(c)           # ✅ list 只有 append()，但不能 .arrange()
+```
+
 ### 参数扫描 + 实时读数
 
 ```python
@@ -154,20 +229,21 @@ import colorsys
 from manim import *
 
 # ⚠️ 版本锁定：Manim Community Edition 0.21.0，勿升级、勿混用 3b1b 版
-# ⚠️ Manim 0.21 的 `from manim import *` **不导出** `CYAN` / `MAGENTA` 这两个名字，
-#    用了会 NameError。但 `TEAL`/`PINK`/`GOLD`/`PURPLE`/`BLUE` 等**是**导出的。
+# ⚠️ `from manim import *` **不导出** `CYAN` / `MAGENTA`，用了会 NameError。
+#    但 `TEAL`/`PINK`/`GOLD`/`PURPLE`/`BLUE` 等**是**导出的。
 #    结论：想要精确的霓虹色就自己定义十六进制常量，别赌名字是否存在。
-#    （已实测：158个大写常量里没有 CYAN / MAGENTA，但有 PURE_CYAN / PURE_MAGENTA）
 BG        = "#000000"
 C_CYAN    = "#22D3EE"   # 自定义霓虹青
 C_MAG     = "#FF2E9A"   # 自定义霓虹品红
 C_PUR     = "#8B5CF6"
 C_YEL     = "#FFD60A"
 C_WHT     = "#F4F7FB"
-C_DIM     = "#8296B4"   # 页脚/ 次要文字，别调太暗，暗底上会看不清
+C_DIM     = "#8296B4"   # 页脚/次要文字，别调太暗，暗底上会看不清
 FONT      = "Noto Sans SC"
 
 FOCAL = 30.0   # 焦距越大越接近正交投影；透视感太强时调大
+FILL  = 0.86   # 主体宽度占画面宽度的比例上限（fit_zoom 用）
+SUB_Y = 3.15   # 固定字幕基线的 Y（top_text 用；别低于 -3.4，否则贴边）
 
 
 class My3DScene(ThreeDScene):
@@ -245,7 +321,7 @@ def place(self, phi, th, fit_range, cap, clouds):
     return z
 
 def dolly(self, phi, th_end, fit_range, cap, clouds, run_time=2.0):
-    """运镜到新机位（带动画）。"""
+    """运镜到新机位（带动画）。th_end 从 THETA[幕名][1] 取。"""
     z = self.fit_zoom(clouds, phi, fit_range[0], fit_range[1], cap)
     self.play(
         self.camera.phi_tracker.animate.set_value(phi),
@@ -255,6 +331,17 @@ def dolly(self, phi, th_end, fit_range, cap, clouds, run_time=2.0):
     )
     return z
 ```
+
+**两条全局tracker 在 `construct` 开头建一次**，3D-5 / 3D-7 / 3D-8 都要用：
+
+```python
+def construct(self):
+    ...
+    self.head_u = ValueTracker(0.0)   # 色带生长进度 0~1
+    self.morph = ValueTracker(0.0)    # 形变进度 0~(len(clouds)-1)
+```
+
+3D-5 里的 `THETA_END` = `THETA["a1"][1]`，即这一幕运镜的终点方位角。
 
 直接改 `cam.phi_tracker` / `theta_tracker` / `zoom_tracker` 的值来做动画，
 比反复调`set_camera_orientation()` 更好控制。

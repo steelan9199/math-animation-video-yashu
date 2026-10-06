@@ -33,7 +33,7 @@ Manim 的 API 迭代很快，而本机**锁定 0.21.0**。凭记忆写代码是�
 
 ---
 
-## 四、30 秒自查法（比翻文档快）
+## 二、30 秒自查法（比翻文档快）
 
 **不确定某个名字是否存在时，直接跑一行 Python**，比查任何文档都快且准。
 
@@ -76,12 +76,12 @@ Read(file_path="D:\software\uv\envs\py314-cpu\Lib\site-packages\manim\scene\thre
 
 ---
 
-## 五、本次实战校验记录（0.21.0 实测，非文档摘抄）
+## 三、实战校验记录（0.21.0 实测，非文档摘抄）
 
 以下每条都跑过验证，且由 `scripts/check_manim_version.py` 持续守护。
 **别再重复踩。**
 
-### 5.1 `from manim import *` 到底导出了什么颜色常量
+### 3.1 `from manim import *` 到底导出了什么颜色常量
 
 **实测结论**：`manim` 命名空间共有 **158个大写常量**，其中：
 
@@ -98,7 +98,7 @@ Read(file_path="D:\software\uv\envs\py314-cpu\Lib\site-packages\manim\scene\thre
 > **教训**：想要精确的霓虹色（如 `#22D3EE`）**一律自己定义十六进制常量**，
 > 不要赌 Manim 有没有这个名字。
 
-### 5.2 `Scene` 的时间属性
+### 3.2 `Scene` 的时间属性
 
 | 论断 | 实测结果 |
 |---|---|
@@ -128,7 +128,7 @@ def follow(m, dt):
 > 被本次校验推翻——`self.time` 是有的，只是不叫 `time_since_start`。
 > **教训：写「某 API 不存在」这种断言前，必须先 `hasattr` 验一遍。**
 
-### 5.3 3D 相关 API
+### 3.3 3D 相关 API
 
 ```python
 ThreeDScene.set_camera_orientation(phi=75*DEGREES, theta=30*DEGREES)
@@ -153,7 +153,7 @@ points[:, 1] *= factor * zoom
 **这就是为什么「把物体摆到原点 + 设 zoom」不能保证画面居中**——
 必须用 `cam.project_points()` 反算，见 `scene-template.md` 的 3D-2。
 
-### 5.4 颜色工具
+### 3.4 颜色工具
 
 | 项 | 结论 |
 |---|---|
@@ -161,7 +161,7 @@ points[:, 1] *= factor * zoom
 | `ManimColor("#22D3EE")` | 构造接受十六进制字符串，直接返回 `ManimColor` |
 | 与 `set_stroke()` 配合 | `interpolate_color` 的返回值可直接喂给 `set_stroke()` |
 
-### 5.5 性能实测（与文档数字一致，复测通过）
+### 3.5 性能实测（与文档数字一致，复测通过）
 
 | 操作 | 单次耗时 | 备注 |
 |---|---|---|
@@ -176,8 +176,9 @@ points[:, 1] *= factor * zoom
 
 ---
 
-## 八、相关文件
+## 四、相关文件
 
 - `SKILL.md` 的「版本规则」与「遇到 Manim API 问题时」—— 速查版
 - `scripts/check_manim_version.py` —— 版本守门
 - `references/scene-template.md` —— 二维模板 + **真 3D 场景模板**（含 `fit_zoom` 反算实现）
+- `references/pitfalls.md` —— 已知坑全集（配色 / 动画机制 / 三维场景）
