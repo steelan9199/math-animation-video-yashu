@@ -9,6 +9,13 @@
       "console": "integratedTerminal"
     },
     {
+      "name": "⬆️ Push only (已提交内容)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "git push",
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "⬇️ Pull from remote",
       "type": "node-terminal",
       "request": "launch",
