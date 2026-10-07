@@ -27,8 +27,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = path.resolve(__dirname, "..");
 
 // ── 红线（与《自进化与维护.md》§九 必须同步改）────────────────────────
-// 唯一红线是字符数。tok 只打印作参考，不拦——tok 靠经验公式估算，用它当红线
-// 会对纯中文改动误报，而砍内容去凑近似数字只会误伤 T1 级知识。
+// 唯一红线是字符数（skillChars）。不设tok 线：tok 靠经验公式估算，用它当红线会对
+// 纯中文改动误报，而砍内容去凑一个近似数字只会误伤 T1 级知识。
 const BUDGET = {
   skillChars: 10000, // 常驻层 SKILL.md 字符数上限（唯一红线）
   refChars: 20000, // 单篇 references/*.md（命中才读）
@@ -47,16 +47,6 @@ const NEGATIVE_WORDS = ["已废弃", "勿再使用", "已推翻", "曾要求", "
 const NEGATIVE_EXEMPT = new Set(["自进化与维护.md", "skill_audit.js"]);
 
 const HISTORY_FILE = path.join(__dirname, ".skill-audit-history.jsonl");
-
-/** 估算 token：中文 0.75/字，其余 3.5 字符/token */
-function estTokens(text) {
-  let cjk = 0;
-  for (const ch of text) {
-    const c = ch.codePointAt(0);
-    if (c >= 0x4e00 && c <= 0x9fff) cjk++;
-  }
-  return Math.round(cjk * 0.75 + (text.length - cjk) / 3.5);
-}
 
 function readText(p) {
   try {
@@ -165,7 +155,7 @@ function checkSize(docs) {
   for (const d of docs) {
     const text = readText(d);
     const r = rel(d);
-    rows.push({ file: r, chars: text.length, tok: estTokens(text) });
+    rows.push({ file: r, chars: text.length });
 
     if (r === "SKILL.md") {
       if (text.length > BUDGET.skillChars)
@@ -199,15 +189,12 @@ function main() {
   const { red: sizeRed, rows } = checkSize(docs);
   red.push(...sizeRed.map((r) => r.what));
 
-  const skillRow = rows.find((r) => r.file === "SKILL.md");
-  const skillTok = skillRow?.tok ?? 0;
-  const skillChars = skillRow?.chars ?? 0;
+  const skillChars = rows.find((r) => r.file === "SKILL.md")?.chars ?? 0;
 
   console.log("\x1b[36m══ skill_audit：自进化门禁 ══\x1b[0m");
   console.log(`技能目录：${SKILL_DIR}`);
   console.log(
     `\n体量：SKILL.md ${skillChars} 字符 / 红线 ${BUDGET.skillChars}` +
-      `  ·  tok 约 ${skillTok}（仅参考，不拦）` +
       (argv.includes("--top") ? "\n单篇文档（超「整篇读」阈值会标 ⚠️）：" : ""),
   );
   for (const r of rows.filter((x) => x.file.endsWith(".md") && x.file !== "SKILL.md")) {
@@ -243,7 +230,7 @@ function main() {
   if (argv.includes("--save")) {
     fs.appendFileSync(
       HISTORY_FILE,
-      JSON.stringify({ ts: new Date().toISOString(), skillTok, docs: rows.length, red: red.length }) + "\n",
+      JSON.stringify({ ts: new Date().toISOString(), skillChars, docs: rows.length, red: red.length }) + "\n",
     );
     console.log(`\n已记历史 → scripts/${path.basename(HISTORY_FILE)}`);
   }
