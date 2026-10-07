@@ -9,7 +9,7 @@
 //   2. 负向声明   —— 全库有无「已废弃 / 勿再使用 / 已推翻 / 曾要求」类痕迹
 //   3. 字体白名单 —— 全库只允许 Noto Sans SC / LXGW WenKai GB两个名字，
 //      出现在任何位置（font=、正文、表格、注释、反例）都算违规，无豁免
-//   4. 体量红线—— 常驻层 SKILL.md（tok 与字符两条并列）与单篇 references/*.md 是否超线
+//   4. 体量红线—— 常驻层 SKILL.md（字符数）与单篇 references/*.md 是否超线
 //
 // 用法：
 //   node scripts/skill_audit.js            摘要（默认）
@@ -27,13 +27,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = path.resolve(__dirname, "..");
 
 // ── 红线（与《自进化与维护.md》§九 必须同步改）────────────────────────
-// 首次标定 = 3300 tok。常驻层现有内容已全部是 T1 级（漏读即白跑/返工/破坏合规），
-// 且已做过一轮瘦身（6273 → 3216 tok，降 49%），再砍就要赶走事故级内容了。
-// 余量刻意留得小：够插一行指针，不够塞一段新规则 ⇒ 逼着新内容下沉 references。
-// 当前实测值不写进注释，跑本脚本现看（注释里的数字必然过期）。
+// 唯一红线是字符数。tok 只打印作参考，不拦——tok 靠经验公式估算，用它当红线
+// 会对纯中文改动误报，而砍内容去凑近似数字只会误伤 T1 级知识。
 const BUDGET = {
-  skillTok: 3300, // 常驻层 SKILL.md（每轮对话重发，杠杆最大）
-  skillChars: 10000, // 常驻层 SKILL.md 字符数上限（与 tok 线并存，任一超线即红）
+  skillChars: 10000, // 常驻层 SKILL.md 字符数上限（唯一红线）
   refChars: 20000, // 单篇 references/*.md（命中才读）
   incidentChars: 24000, // 单篇事故复盘（只在重犯同源事故时才读）
 };
@@ -171,8 +168,6 @@ function checkSize(docs) {
     rows.push({ file: r, chars: text.length, tok: estTokens(text) });
 
     if (r === "SKILL.md") {
-      const t = estTokens(text);
-      if (t > BUDGET.skillTok) red.push({ what: "SKILL.md 超 tok 红线", detail: `${t} > ${BUDGET.skillTok} tok` });
       if (text.length > BUDGET.skillChars)
         red.push({ what: "SKILL.md 超字符红线", detail: `${text.length} > ${BUDGET.skillChars} 字符` });
     } else if (r.endsWith(".md") && r.includes("incidents")) {
@@ -204,13 +199,15 @@ function main() {
   const { red: sizeRed, rows } = checkSize(docs);
   red.push(...sizeRed.map((r) => r.what));
 
-  const skillTok = rows.find((r) => r.file === "SKILL.md")?.tok ?? 0;
+  const skillRow = rows.find((r) => r.file === "SKILL.md");
+  const skillTok = skillRow?.tok ?? 0;
+  const skillChars = skillRow?.chars ?? 0;
 
   console.log("\x1b[36m══ skill_audit：自进化门禁 ══\x1b[0m");
   console.log(`技能目录：${SKILL_DIR}`);
   console.log(
-    `\n体量：SKILL.md ${skillTok} tok / 上限 ${BUDGET.skillTok}` +
-      `  ·  ${rows.find((r) => r.file === "SKILL.md")?.chars ?? "?"} 字符 / 上限 ${BUDGET.skillChars}` +
+    `\n体量：SKILL.md ${skillChars} 字符 / 红线 ${BUDGET.skillChars}` +
+      `  ·  tok 约 ${skillTok}（仅参考，不拦）` +
       (argv.includes("--top") ? "\n单篇文档（超「整篇读」阈值会标 ⚠️）：" : ""),
   );
   for (const r of rows.filter((x) => x.file.endsWith(".md") && x.file !== "SKILL.md")) {

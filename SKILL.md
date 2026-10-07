@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 用 math-animation 连接器(MCP)把数学/物理/论文知识点与题目渲染成教学动画视频（MP4、无配音），并能用同一套manim 管线生成微信公众号封面图与各类数据/结构图表（柱状图、折线图、饼图、流程图、思维导图、鱼骨图、甘特图、桑基图、热力图、雷达图、组织架构图等，清单见 references/chart-generation.md）。激活条件：用户消息含以下关键词之一：`生成数学动画`、`数学动画视频`、`把 XX 做成动画视频`、`做数学讲解动画`、`真 3D 立体动画`、`排查 Manim 报错`、`论文动画`、`公式可视化`、`动画讲解`、`可视化这个原理`、`manim`、`公众号封面`、`公众号配图`、`做封面`、`文章头图`、`封面图`、`画图表`、`做图表`、`生成图表`、`数据可视化`。
-version: 1.3.0
+version: 1.4.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -16,8 +16,13 @@ version: 1.3.0
 
 两条静态图路线**不走** MCP `render_animation`、**不走** `render_video.py` / `contact_sheet.py`，
 各有自己的命令与坑。**所有公众号封面都归本技能**，无论有没有公式图表。
+
+**能力边界（先判断能不能做，别硬凑）**：产物**只有上表三类**，全是manim 矢量绘制——
+**零 AI 生图、无配音**。做不了：照片级/手绘级插画、真实数据统计结论、音频。
+落在边界外直接说明限制，别用近似图形凑。
 **核心认知：manim 不止做数学动画**——任何信息图都是「坐标 + 图元 + 文字」，
 难点在**版面**不在图形（详见 `references/chart-generation.md` 开头）。
+
 ## 二、不可违反的硬约束
 
 1. **🔒 字体白名单（全库唯一两个字体名）**：**只允许 `Noto Sans SC` 与 `LXGW WenKai GB`**（后者**带 GB**）。
@@ -51,10 +56,11 @@ version: 1.3.0
 9. **交付必须走完 §四 全流程**，不得跳过自检直接说"做好了"。**必须用返回值的 `file_path`**，
    别猜文件名（重名会带 `_1`/`_2` 后缀）。
 10. **本技能是活文档——只留正确的知识**：进文档须过五道门槛（G0~G4），证伪的删干净。
-    **G0 硬证据 = 本次会话亲自跑过并看到输出**（定义见维护文档 §11.1）。
+    **G0 硬证据 = 本次会话亲自跑过并看到输出**（定义与删错门槛见维护文档 §11.1 / §三）。
 11. **🔧 取证充分就直接改，不必请示**——卡住自进化的请示成本比改错更高。只有不可逆或会削弱
     安全网的动作才先问（删脚本 / 删 git tag / 改推送目标 / 绕门禁 / 改接口签名 / 换 remote /
     升级依赖）。判断口径：**能不能靠 git 回滚 + 门禁能不能拦住**。能 ⇒ 直接改。
+    完整授权分级表（含 MCP 仓库）见维护文档 §四与 §11.2。
 
 ## 三、成片渲染路径选择（仅用于步骤 4；预览见 §四 步骤 2）
 
@@ -76,15 +82,14 @@ MCP `render_animation` 硬超时 **120 s** ⇒ 预估 < 110 s 调 MCP；**≥ 11
 
 ### 步骤 2：480p 预览
 ```powershell
-& "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe" `
-  "<本技能目录>/scripts/render_video.py" <scene.py> `
+$P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
+& $P "<技能目录>\scripts\render_video.py" <scene.py> `
   --quality low --style khan_academy --timeout 900
 ```
 加 `run_in_background=true` + `dangerouslyDisableSandbox=true`。**3D 场景须先做完 §五 的标定场景**。
 
 ### 步骤 3：抽帧自检（必做）
 ```powershell
-$P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 & $P "<技能目录>\scripts\contact_sheet.py" <预览mp4> --auto --cols 3 --rows 5 --out sheet.png
 & $P "<技能目录>\scripts\contact_sheet.py" <预览mp4> --start <尾段起始秒> --auto --cols 3 --rows 2 --out tail.png
 ```
@@ -124,7 +129,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | MCP 服务名 | `math-animation` |
 | 渲染引擎 Python | `D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe` |
 | 引擎仓库 / 输出目录 | `D:\github\math-animation-mcp` / `animation_output`（**固定不可改**） |
-| 默认中文字体 | `LXGW WenKai GB`（启动器注入为 `Text`/`MarkupText`） |
+| 默认中文字体 | 白名单里的楷体（启动器注入为 `Text`/`MarkupText`）；封面固定用黑体 |
 | ffmpeg / ffprobe | `D:\software\ffmpeg\ffmpeg-2024-09-26-git-f43916e217-full_build\bin\` |
 | LaTeX | MiKTeX：`D:\software\MiKTeX\miktex\bin\x64\`（`MathTex` 可用） |
 | Manim 依赖（版本权威） | `D:\software\uv\envs\py314-cpu\Lib\site-packages\manim` |
@@ -135,7 +140,6 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 `blackboard` 深绿`#2D5016`（模拟课堂）。
 
 ## 七、文档路由（按需读，别通读；⚠️ 标记的先 Grep 局部读）
-
 | 文件 | 什么时候读 |
 |---|---|
 | **`references/自进化与维护.md`** | **改本技能前必读**。收录判据 / 硬证据定义 / 删错门槛 / 授权分级 / 版本号 / push-tag-回滚 / 体量红线 |
