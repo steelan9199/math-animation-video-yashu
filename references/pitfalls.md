@@ -9,15 +9,14 @@ SKILL.md 里只留硬约束与速查指针；**排查具体问题时来这里查
 
 | 坑 | 正确做法 |
 |---|---|
-| 渲染器收尾递归删除 `_render_tmp` 撞上本机批量删除钩子，退出码非零但**成片是好的** | 加 `dangerouslyDisableSandbox=true` **且 `run_in_background=true`**；撞上后不要重跑（见下一行） |
-| 用后台执行撞上删除钩子后，重跑一次白等几十秒 | 不要重跑，直接去 `animation_output` 按修改时间找新文件 |
+| 渲染器收尾递归删除临时目录撞上本机批量删除钩子，退出码非零但**产物是好的** | 加 `dangerouslyDisableSandbox=true` **且 `run_in_background=true`**。撞上后**不要重跑**（重跑就是白等几十秒），直接去 `animation_output` 按修改时间找新文件 |
 | 自检阶段走 MCP（`preview_scene`）可能把 MCP 进程一起带崩 | 自检一律直接跑 `scripts/render_video.py` + `scripts/contact_sheet.py`，不过 MCP |
 | 抽帧只看前 N 秒，漏掉闪白/收尾卡片 | 结尾段落必须用 `contact_sheet.py --start <秒>` 单独抽一张 |
 | `contact_sheet.py` 拼图没覆盖全片却看不出来 | 用 `--auto` 让它自动算 `every`；认输出里的 `⚠️ 未覆盖全片` 告警 |
 | 成片预估落在 MCP 的 120 s 硬限附近，赌一把就超时 | 本机预览→成片实测倍率约 ×1.3～1.7，排期按 **×3 上限**估。预估 < 110 s 才调 MCP；≥ 110 s 直接走`render_video.py`。区间跨阈值时按上限算，不要赌 |
 | 预览／渲染超时后原地重试，白等一轮 | 超时即换路径：预览超时走 `render_video.py --quality low`，成片超时走 `--quality medium` |
 | 渲染文件重名加 `_1` 后缀，误把预览片当成品交付 | 只用返回值里的 `file_path` |
-| **渲染「卡住」时靠 `sleep` / 轮询反复确认 → 27 分钟纯空转（最大一次浪费）** | 等 30 s 无产出就**查 MCP 临时目录有没有分帧文件**（见下节「30 秒取证法」）：只有 `scene.py`、`media/` 里零文件 ⇒ 不是慢、是跑不动，立刻改代码 |
+| **渲染「卡住」时靠 `sleep` / 轮询反复确认 → 27 分钟纯空转（最大一次浪费）** | 等 30 s 无产出就**查 MCP 临时目录有没有分帧文件**（见下节判性质表）：只有 `scene.py`、`media/` 里零文件 ⇒ 不是慢、是跑不动，立刻改代码 |
 | **前台跑渲染，工具调用一结束就把 Manim 一起 SIGTERM 掉** | 一律 `run_in_background=true`；用 `TaskOutput` 等通知，不要 `sleep`。⚠️ **MCP 工具调用没有后台参数**，只能靠预估耗时分流 |
 | `_render_spawn.log` 里只有 `SPAWN` 没有 `DONE`，却以为只是慢 | 那一行就是「被中途杀掉」的铁证。**`SPAWN`/`DONE` 必须成对**，不成对就重跑 |
 | 抽帧取帧区间太短（`--duration` 小于 `--every` × 帧数）导致拼图 `FAILED` | `--duration` 至少 ≥ `--every × cols × rows`；不确定就用 `--auto`，或把 `--duration` 放宽到 ≥3 s |
@@ -78,8 +77,8 @@ Get-ChildItem "D:\github\math-animation-mcp\_render_tmp" -Directory |
 |---|---|
 | `MathTex` 默认是**白色**，白底风格下看不见，只剩手动上色的部分 | 先 `formula.set_color(INK)` 整组压深色，再给需要强调的子串单独上色 |
 | 白底风格下坐标轴/网格/文字用 Manim 默认白色 | 每个 `Text`/`MathTex`/`Axes`/`NumberPlane` 都显式给颜色；网格用 `#E4E7EE`，轴用 `#7B8794` |
-| 中文显示成方框 | `Text(..., font="Noto Sans SC")` 显式指定，或依赖启动器注入的 `LXGW WenKai GB`；`MathTex` 里不要混中文 |
-| **`\mathrm{}` 里塞中文导致 LaTeX 编译失败** | 拆成 `VGroup(MathTex("T(2,3)"), Text("三叶结", font=FONT))`，中文永远交给 `Text` |
+| 中文显示成方框 | `Text(..., font="Noto Sans SC")` 显式指定，或依赖启动器注入的 `LXGW WenKai GB` |
+| **`\mathrm{}` / `\text{}` 里塞中文，或用 `Title()`，导致 LaTeX 编译失败** | 本机 LaTeX **没装 ctex 中文支持**，报 `latex error converting to dvi` ⇒ **一张图都不产出**。中文标题/词组一律 `Text(..., font=FONT)`，公式用纯英文 `MathTex`。本机实测：`Text`（中/英）、纯英文 `MathTex` 均正常，只有 `Title()` 和 `\text{中文}` 会炸 |
 | 暗底上次要文字用色太暗，看不清 | 页脚/次要文字别低于 `#8296B4` |
 | 公式字号写太大，贴到右边缘被裁掉 | 字号 ≤ 28，放画面中下方居中，不横排太长 |
 | **字体名写错会静默回退，渲染照常成功但字体不是你要的那个** | 见下方「字体名必须精确匹配」，渲染日志里搜 `falling back` 必查 |
@@ -190,18 +189,13 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 ```python
 Line([-1, 0.2, 0], [1, 0.2, 0])          # ✅
-Arrow([-3.4, 1.0, 0], [-2.28, 1.2, 0])# ✅
 Line([-1, 0.2], [1, 0.2])                # ❌ ValueError
 ```
 
-报错特征（`set_anchors_and_handles` 里炸）：
-
-```
-ValueError: could not broadcast input array from shape (1,2) into shape (1,3)
-```
-
-**原因**：二维列表被当成 4D 点处理，锚点维度对不上。**凡是用列表字面量
-给端点，就补 `, 0`**。用 `np.array(...)` 或 `.get_center()` 取出的坐标天然是三维，不受影响。
+**原因**：二维列表被当成 4D 点处理，锚点维度对不上。报错固定是
+`ValueError: could not broadcast input array from shape (1,2) into shape (1,3)`
+（`set_anchors_and_handles` 里炸）。**凡是用列表字面量给端点，就补 `, 0`**；
+用 `np.array(...)` 或 `.get_center()` 取出的坐标天然是三维，不受影响。
 
 **2. `always_redraw` 的回调零参数**
 

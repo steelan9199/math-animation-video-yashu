@@ -72,9 +72,15 @@ cd <工作目录>
   只给 `run_in_background` 而没关沙箱，会撞上本机批量删除钩子，退出码非零但**产物是好的**。
 - **`--renderer=cairo`**：纯 CPU、无 GPU 依赖、PNG 带抗锯齿，比 opengl 稳。
 - **`-s`**：只保存最后一帧。封面是静态图，不要 mp4、不要 `--quality`。
-- **不要用 `scripts/render_video.py`**：它只支持 `mp4/gif/webm`（**出不了 PNG**），
-  且会注入默认风格背景色，把封面底色改掉。（它的字体注入**不影响**封面——
-  注入用的是 `kw.setdefault('font', ...)`，场景代码里显式写的 `font=FONT` 优先。）
+- **不要用 `scripts/render_video.py`**：它的 `--format` 只有 `mp4/gif/webm`
+  三个取值，传 `png` 会被 argparse 拒掉（`invalid choice`，退出码 2）；
+  且它会注入默认风格背景色，把封面底色改掉。
+  （它的字体注入**不影响**封面——注入用的是 `kw.setdefault('font', ...)`，
+  场景代码里显式写的 `font=FONT` 优先。）
+- **⚠️ 别把这条读成「本技能出不了 PNG」——完全不是**：`--format=png` 是
+  **manim 0.21.0 引擎自带能力**（本机实测直跑即出 PNG，零字体回退）。
+  受限的只是上面那两个**封装入口**的参数枚举，不是引擎。
+  **封面走的是本地直连渲染**（§三 第一条命令 / `render_cover.py`），根本不经过它们。
 - **不要用 MCP 的 `render_animation`**：那是视频接口，输出 mp4。
 - **不要用 `contact_sheet.py`**：它处理 mp4 抽帧，PNG 用不着。封面自检就是**直接看图**。
 
@@ -165,10 +171,11 @@ self.add(board)
 | 文字溢出画布被裁 | `fit_board()` + 打印 board 尺寸，**不要目测估中文宽度** |
 | 竖排文字/多行卖点在卡片里堆到原点 | `in_card(cx, cy, [(m, dx, dy)])` 相对摆位，或 `arrange` **后**按 `get_center()` 重算 |
 | `MathTex` 在白底上看不见（纯白） | `set_color(INK)`；次要公式用 `GRAY` |
+| **中文标题别用 `Title` / `MathTex(r"\text{中文}")`——直接 LaTeX 报错** | 这俩都走 LaTeX 模板，而本机 LaTeX **没装 ctex 中文支持**：`latex error converting to dvi` ⇒ **一张图都不产出**。中文标题一律用 `Text(..., font=FONT)`，公式用纯英文 `MathTex`。本机实测：`Text`（中/英）与纯英文 `MathTex` 均正常出图，只有 `Title` 和 `\text{中文}` 会炸 |
 | 公式撑出卡片 | 窄卡（宽 2 单位）公式字号 **20~24**，并预留卡片内边距 |
 | 中文静默回退成默认字体 | 日志 grep `falling back`，必须为 0；字体名精确到 `Noto Sans SC` |
 | `Line`/`Arrow` 端点写二维会崩 | 必须 `[x, y, 0]` |
-| 用了 `render_video.py` | 它只出 mp4/gif/webm（**没有 PNG**）且会注入风格底色；封面直接 `python -m manim render` |
+| 用了 `render_video.py` | 它的 `--format` 不接受 `png`（argparse 拒掉），且会注入风格底色。**这是入口限制，不是引擎限制**——封面直接 `python -m manim render` |
 | 卡片数量多导致画面碎 | **最多 3 张卡**，封面要一眼看完 |
 | 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调 |
 | **`arrange(aligned_edge=CENTER)` 报 `NameError: CENTER`** | 0.21.0 **没有 `CENTER` 常量**（只有 `UP/DOWN/LEFT/RIGHT/ORIGIN`）。居中用 `arrange(DOWN, buff=0.3, center=True)`——`arrange` 有 `center: bool` 参数 |

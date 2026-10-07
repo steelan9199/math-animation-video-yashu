@@ -149,7 +149,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | 引擎仓库 / 输出目录 | `D:\github\math-animation-mcp` / `animation_output`（**固定不可改**） |
 | 默认中文字体 | `render_video.py` 启动器注入楷体（覆盖 `Text`/`MarkupText` 默认）；场景内显式写了 `FONT=` 的以场景为准。**封面固定用黑体**，见 `references/wechat-cover.md` §二 字体授权 |
 | ffmpeg / ffprobe | `D:\software\ffmpeg\ffmpeg-2024-09-26-git-f43916e217-full_build\bin\` |
-| LaTeX | MiKTeX：`D:\software\MiKTeX\miktex\bin\x64\`（`MathTex` 可用） |
+| LaTeX | MiKTeX：`D:\software\MiKTeX\miktex\bin\x64\`（**纯英文** `MathTex` 可用；**没装 ctex**，中文塞进 LaTeX 会报 `latex error converting to dvi` ⇒ 零产物。中文一律 `Text(..., font=FONT)`） |
 | Manim 依赖（版本权威） | `D:\software\uv\envs\py314-cpu\Lib\site-packages\manim` |
 
 **六种风格**（只改背景色，前景色仍须在代码里写死）：`khan_academy` 白`#FFFFFF`（**默认**，中小学/高中）、
