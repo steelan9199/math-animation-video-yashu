@@ -1,16 +1,15 @@
 # 微信公众号封面（manim 路线）
 
-**触发**：用户说「做公众号封面」「配封面图」「文章头图」「公众号配图」，且封面里要出现  
-**公式 / 图表 / 几何结构 / 数据可视化**。
+**触发**：用户说「做公众号封面」「配封面图」「文章头图」「公众号配图」「金句卡」「要点卡」，
+不论封面里有没有公式、图表、插画——**公众号封面全部由本技能产出**。
 
-**与 `wechat-illustration-yashu` 的分工**（别选错）：
+**能力边界**：manim 是矢量排版引擎，文字 + 图形都能画，所以以下类型都走本技能：
 
-| 封面类型                             | 走哪条路                                                    |
+| 封面类型| 做法 |
 | -------------------------------- | ------------------------------------------------------- |
-| 要有**数学公式、函数图像、柱状/折线图、几何图形、三维结构** | **本技能（manim）**。矢量、可控、公式是真 LaTeX                         |
-| 纯文字排版、金句卡、要点卡、人物/场景插画            | `wechat-illustration-yashu`（HTML/CSS 手写版式 + 无头浏览器截 JPG） |
-
-两者产物都是图片，可以混用：同一篇文的主封面走 manim，文中插图走另一个。
+| **公式 / 函数图像 / 柱状折线图 / 几何图形 / 三维结构** | 左文右图版式（见 §五），右侧图卡放公式与图表 |
+| **纯文字排版 / 金句卡 / 要点卡** | 单卡居中版式：大字主标 + 细分割线 + 底部落款，靠 `fit_board` 兜底缩放（见 §五末） |
+| **人物/ 场景插画** | 用几何图元拼装示意性图形；**照片级 / 手绘级插画本技能做不了**，直接告诉用户这个限制，不要硬凑 |
 
 ---
 
@@ -294,9 +293,61 @@ class MyCover(Scene):            # 类名必须 ASCII
 ```
 
 **可复用图元**：曲线 `ax.plot` / `VMobject.set_points_smoothly`、面积填充  
-（`set_points_as_corners` 拼上底边两点，`fill_opacity=0.12`）、柱状 `Rectangle` 组、  
-`DashedLine` 均值参考线、`MathTex` 公式、`Dot` 端点高亮。图卡标签统一放在卡片底部  
+（`set_points_as_corners` 拼上底边两点，`fill_opacity=0.12`）、柱状 `Rectangle` 组、
+`DashedLine` 均值参考线、`MathTex` 公式、`Dot` 端点高亮。图卡标签统一放在卡片底部
 `CY - 1.22` 左右，字号 23、灰色 `GRAY`。
+
+### 5.2纯文字 / 金句卡 / 要点卡（单卡居中版式，2026-10-07 实测交付）
+
+没有公式图表时不要硬塞图卡，改用**单卡居中**：大字主标 + 副标 + 细分割线 + 底部落款。
+**关键：用 `next_to` 按实际边界排版，不要手填 `move_to` 坐标**——手填坐标换文案必重叠。
+
+```python
+from manim import *
+
+INK = "#21242C"; BLUE = "#1865F2"; AXC = "#98A2B3"; GRIDC = "#E4E7EE"
+GRAY = "#6B7280"; BG = "#FFFFFF"
+FONT = "Noto Sans SC"          # 封面固定用黑体系；不要用楷体（LXGW），远看发虚
+
+config.frame_width = 14.222
+config.frame_height = 14.222 * 766 / 1800     # = 6.052，严格锁 2.35:1
+
+
+class QuoteCover(Scene):            # 类名必须 ASCII
+    def construct(self):
+        self.camera.background_color = BG
+
+        # 主标：两行，第二行用主色上色
+        t1 = Text("把复杂讲简单", font=FONT, font_size=76, color=INK)
+        t2 = Text("把简单讲有趣", font=FONT, font_size=76, color=BLUE)
+        title = VGroup(t1, t2).arrange(DOWN, buff=0.30, center=True)
+
+        # 副标 / 分割线 / 落款：全部 next_to 串起来，换文案也不会重叠
+        sub = Text("一个 MCP 讲完公式、图表与动画",
+                   font=FONT, font_size=28, color=GRAY)
+        sub.next_to(title, DOWN, buff=0.52)
+
+        line = Line([-2.60, 0, 0], [2.60, 0, 0], stroke_width=2.2, color=GRIDC)
+        foot = Text("公众号 · 每周更新", font=FONT, font_size=23, color=AXC)
+        foot.next_to(sub, DOWN, buff=0.62)
+        line.next_to(foot, UP, buff=0.26)
+
+        board = VGroup(title, sub, line, foot)
+        # 兜底缩放 + 垂直居中：内容少时必须居中，否则整体压在下边缘被裁
+        fw, fh = config.frame_width, config.frame_height
+        if board.width + 1.1 > fw:
+            board.scale_to_fit_width(fw - 1.1)
+        if board.height + 1.1 > fh:
+            board.scale_to_fit_height(fh - 1.1)
+        board.move_to([0, 0, 0])
+        self.add(board)
+```
+
+实测数据：`font_size=76` 两行主标 + 28 副标 + 23 落款，在 1800×766 画布下
+不需要缩放（`fit_board` 未触发），成图 3.1 s，字形正常、留白完整。
+
+字号换算参考（画布高仅 6.05 单位，**纵向余量比横向紧张得多**）：
+主标 62~88、副标 24~30、落款 22~24。**超过 88 会顶到上下边缘**。
 
 ## 六、封面专属坑（与视频不同的点）
 
@@ -314,8 +365,10 @@ class MyCover(Scene):            # 类名必须 ASCII
 | 中文静默回退成默认字体 | 日志 grep `falling back`，必须为 0；字体名精确到 `Noto Sans SC` |  
 | `Line`/`Arrow` 端点写二维会崩 | 必须 `[x, y, 0]` |  
 | 用 render_video.py 导致字体被注入成楷体 | 封面直接 `python -m manim render` |  
-| 卡片数量多导致画面碎 | **最多 3 张卡**，封面要一眼看完 |  
+| 卡片数量多导致画面碎 | **最多 3 张卡**，封面要一眼看完 |
 | 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调 |
+| **`arrange(aligned_edge=CENTER)` 报 `NameError: CENTER`**（2026-10-07 实测） | 0.21.0 **没有 `CENTER` 常量**（只有 `UP/DOWN/LEFT/RIGHT/ORIGIN`）。居中用 `arrange(DOWN, buff=0.3, center=True)`——`arrange` 有 `center: bool` 参数 |
+| **手填 `move_to` 坐标排版，换文案就重叠/被裁**（2026-10-07 实测，两轮返工） | 一律用 `next_to(参照物, 方向, buff=…)` 按**实际边界**串版面；最后 `board.move_to([0,0,0])` 垂直居中。金句卡模板见 §5.2 |
 
 ## 七、自检清单（渲染后必须亲眼看图）
 
@@ -350,3 +403,17 @@ PNG 是静态图，**不需要抽帧拼图**，直接用读图工具打开成品
 | 3  | 画面重心偏上             | 收尾统一 `shift(DOWN * 0.30)`        |
 
 单帧渲染耗时 **3~5 秒**，三轮共约 15 秒。
+
+### 2026-10-07：金句卡版式（纯文字封面能力补齐）
+
+**纯文字/金句卡/要点卡封面现已由本技能产出**（§5.2 已给可复制模板），触发词：金句卡、要点卡、
+纯文字封面。
+本次实测又抓到两条坑（已进 §六 坑表）：
+
+| # | 现象 | 根因 | 修法 |
+| -- | --- | --- | --- |
+| 1 | `NameError: name 'CENTER' is not defined` | 0.21.0 无 `CENTER` 常量 | `arrange(..., center=True)` |
+| 2 | 副标被第二行主标压住→ 改完又被下边缘裁掉落款 | 手填 `move_to` 坐标，字号一变就失效 | `next_to` 串版面 + 末尾垂直居中 |
+
+**两条都是代码不报错、只有看图才发现的**——第2 条整整两轮返工，全靠 §七 自检清单拦住。
+单帧渲染 3.1 s，成图 63 KB。
