@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 用 math-animation 连接器(MCP)把数学/物理/论文知识点与题目渲染成教学动画视频（MP4、无配音），并能用同一套manim 管线生成微信公众号封面图与各类数据/结构图表（柱状图、折线图、饼图、流程图、思维导图、鱼骨图、甘特图、桑基图、热力图、雷达图、组织架构图等，清单见 references/chart-generation.md）。激活条件：用户消息含以下关键词之一：`生成数学动画`、`数学动画视频`、`把 XX 做成动画视频`、`做数学讲解动画`、`真 3D 立体动画`、`排查 Manim 报错`、`论文动画`、`公式可视化`、`动画讲解`、`可视化这个原理`、`manim`、`公众号封面`、`公众号配图`、`做封面`、`文章头图`、`封面图`、`画图表`、`做图表`、`生成图表`、`数据可视化`。
-version: 1.4.1
+version: 1.5.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -110,8 +110,8 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 
 ## 五、真 3D 场景（用户要「立体、相机环绕」时）
 
-**不要用二维模板硬凑。** 完整可复制代码见 `references/scene-template.md` 的「三维场景模板」
-（3D-1~3D-10）。六条硬性要求，违反任一 = 返工；论证与可复制实现都在该文档：
+**不要用二维模板硬凑。** 完整可复制代码见 `references/scene-template-3d.md`（3D-1~3D-10）。
+六条硬性要求，违反任一 = 返工；论证与可复制实现都在该文档：
 
 1. **先渲染标定场景**（20 秒廉价渲染）—— 透视投影下「包围盒中点」≠ 画面中心。
 2. **zoom 用 `cam.project_points()` 反算**，按这一幕实际走到的机位给区间（按全角度最坏情况
@@ -143,14 +143,18 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | 文件 | 什么时候读 |
 |---|---|
 | **`references/自进化与维护.md`** | **改本技能前必读**。收录判据 / 硬证据定义 / 删错门槛 / 授权分级 / 版本号 / push-tag-回滚 / 体量红线 |
-| **`references/pitfalls.md`** | **排查具体问题时**。已知坑全集 + 排查流程 + 探针脚本 + 字体详解 |
-| **`references/scene-template.md`** | 写场景代码时。2D 最小模板 + 配色常量 + 卡片布局 + **真 3D 模板（3D-1~3D-10）** ⚠️ |
-| **`references/chart-generation.md`** | **要任何图表/信息图时必读**。实战坑 + 三层安全区 + 各类图表实现要点（清单见其§七） |
-| **`references/wechat-cover.md`** | **要封面/头图时必读**。尺寸规格、渲染命令、防裁切、版式模板、封面专属坑、自检清单 ⚠️ |
+| **`references/mcp-repo-rules.md`** | 改 MCP 仓库（`D:\github\math-animation-mcp`）时。取证门槛 / 授权分级 / 回归自检 / 双边记账 |
+| **`references/pitfalls.md`** | **排查具体问题时**。通用坑全集 + 排查流程 + 探针脚本 + 字体详解 ⚠️ |
+| **`references/scene-template.md`** | 写**二维**场景代码时。最小可靠模板 + 配色常量 + 卡片布局 + 参数扫描 + 小结卡 |
+| **`references/scene-template-3d.md`** | 写**真 3D**（`ThreeDScene`）场景时。3D-1~3D-10：反算 zoom、运镜、字幕、色带、HSV 配色、形变、白闪、标定场景 ⚠️ || **`references/chart-generation.md`** | **要任何图表/信息图时必读**。标准流程 + 三层安全区 + `charts_lib` + 各类图表实现要点（清单见其 §六） |
+| **`references/chart-pitfalls.md`** | 图表路线踩过的坑（坑 1~15）。排查时按需查 |
+| **`references/wechat-cover.md`** | **要封面/头图时必读**。尺寸规格、渲染命令、防裁切、封面专属坑、自检清单 |
+| **`references/wechat-cover-layouts.md`** | 两套封面版式的可复制代码：左文右图 / 单卡居中（金句卡、要点卡） |
 | **`references/manim-api-troubleshooting.md`** | **写拿不准的 API 之前**。30 秒自查法 + 本机源码位置 + 0.21.0 实测结论。**不要凭记忆写 Manim API** |
 | **`references/incidents/mandelbulb-postmortem.md`** | 点云/分形场景前，或怀疑自己会"卡住干等"时。27 分钟空转事故链 |
 
-> 体量与「是否标 ⚠️」由 `node scripts/skill_audit.js --top` 现算，**文档里不写死数字**。
+> **所有文档统一 ≤10000 字符，超了必须拆分**（不调阈值）。体量与 ⚠️ 标记由
+> `node scripts/skill_audit.js --top` 现算，**文档里不写死数字**。
 
 **脚本**
 

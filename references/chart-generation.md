@@ -2,34 +2,29 @@
 
 **触发**：用户要「画图表 / 做数据图 / 柱状图 / 折线图 / 饼图 / 流程图 / 思维导图 /
 鱼骨图 / 甘特图 / 组织架构图 / 漏斗图 / 桑基图 / 热力图 / 雷达图」等**任何信息图**。
-**已支持哪些图表类型见 §七 要点表**——先查表，表里没有的按 §七 要点表的写法新增一个场景类即可。
+**已支持哪些图表类型见 §六 要点表**——先查表，表里没有的按该表的写法新增一个场景类即可。
+**踩过的坑见 `references/chart-pitfalls.md`**（通用坑在 `references/pitfalls.md`）。
 
 > **核心认知：manim 不只是做数学动画的。**
 > 任何信息图拆开都是「坐标 + 图元 + 文字」。柱状图是 `Rectangle`，
 > 折线图是 `VMobject.set_points_smoothly`，流程图是 `Rectangle + Arrow`，
 > 思维导图是 `CurveArrow` 放射——**难度不在图形，在于版面对齐和避坑**。
-> 本文档就是那份避坑手册。
-
----
 
 ## 一、标准流程（六步，不许跳）
 
 | 步骤 | 动作 | 工具 | 耗时 |
 |---|---|---|---|
 | 1 | 跑 manim 版本守门 | `scripts/check_manim_version.py` | 秒 |
-| 2 | 从本文件 + 模板抄一版场景代码 | `charts_lib.py`（见第六节） | 分钟 |
+| 2 | 抄一版场景代码 | `charts_lib.py`（见 §五） | 分钟 |
 | 3 | **探针校验语法**（不渲染像素） | `scripts/probe_charts.py` | 秒 |
 | 4 | 真渲染出图 | `manim render --format=png -s` | 3~6 s/张 |
 | 5 | **版面自检**（压标题 / 溢出画布） | `scripts/check_chart_layout.py` | 4 s/张 |
 | 6 | 亲眼看图 + 交付 | 读图工具 | 分钟 |
 
-**核心纪律：第 3 步和第 5 步是本技能图表路线的核心，不可跳过。**
-
-- 第 3 步解决「代码报错但看不到报错行」——`manim render` 的回溯是**截断的**，
-  只显示 `ValueError: operands could not be broadcast together with shapes (4,3) (2,)`
-  这类无信息量的尾巴，你根本不知道是哪一行。探针给的是 Python 原生完整 traceback。
-- 第 5 步解决「代码不报错、渲染成功、但画面压标题/溢出」——这类问题**只有看图或
-  像素检测才能发现**，人眼看 N 张图一定漏。
+**核心纪律：第 3 步和第 5 步不可跳过。** 第 3 步解决「代码报错但看不到报错行」
+（`manim render` 的回溯是截断的，只给无信息量的尾巴，探针给的是完整 traceback）；
+第 5 步解决「代码不报错、渲染成功、但画面压标题/溢出」——**这类问题只有看图或
+像素检测才能发现**。
 
 ---
 
@@ -59,153 +54,7 @@ config.frame_height = 8.0
 封面另用 2.35:1，见 `wechat-cover.md`。
 
 ---
-
-## 三、⚠️ 本次实战踩过的坑（全部已修，全部复现过）
-
-### 坑 1｜角度参数是**弧度**，不是角度
-
-```python
-AnnularSector(start_angle=0, angle=90)        # ❌ 90 弧度 = 25 圈，形状全乱
-AnnularSector(start_angle=0, angle=np.radians(90))   # ✅
-```
-
-报错长这样：`ValueError: operands could not be broadcast together with shapes (4,3) (2,)`
-——它把 `90` 当弧度算出超大坐标，和中心点一减就炸了。**这个报错信息完全看不出
-「角度单位错了」，是这个坑最恶心的地方。**
-
-已实测：`AnnularSector.__init__(inner_radius, outer_radius, angle=π/2, start_angle=0, ...)`，
-`Arc`、`ArcBetweenPoints` 同样。
-
-### 坑 2｜类名是 `AnnularSector`（**双 r**）
-
-```python
-from manim import *
-AnnularSector(...)# ✅ 0.21.0 顶层导出，from manim import * 直接可用
-```
-
-写错成 `AnnulusSector`（单 r）报
-`ImportError: cannot import name ... Did you mean: 'AnnularSector'?`。
-（实测 0.21.0：`manim.AnnularSector` 与 `manim.mobject.geometry.arc.AnnularSector`
-是同一个类对象，显式从子模块 import 也可行但没必要。）
-
-### 坑 3｜`move_to(a, b, c)` 三个位置参数会崩
-
-```python
-lab.move_to(x, y, 0)                # ❌ IndexError: invalid index to scalar variable
-lab.move_to(np.array([x, y, 0]))    # ✅
-```
-
-签名是 `move_to(point_or_mobject, aligned_edge=ORIGIN, ...)`——
-你传的 `y` 会被当成 `aligned_edge`，然后去取 `direction[dim]` 就炸了。
-**所有二维定位一律用 `at(x, y)` 转三维。**
-
-### 坑 4｜`shift()` 传二维向量会崩
-
-```python
-VGroup(g, ax).shift((0, 0))          # ❌ ValueError: broadcast (4,3) (2,)
-VGroup(g, ax).shift(np.array([0, 0, 0]))   # ✅
-```
-
-和坑 1 的报错**一模一样**，极易误判。记住：**任何 `shift` 位移都是三维。**
-
-### 坑 5｜`Axes.get_area` 的 `x_range` 只收 2 元组
-
-```python
-ax.get_area(curve, x_range=[0, 12, 0.15])     # ❌ too many values to unpack (expected 2, got 3)
-ax.get_area(curve, x_range=(0, 12))           # ✅  只给上下界
-```
-
-堆叠面积图要用 `bounded_graph` 指定**下界那条曲线**，**没有 `y_range` 参数**：
-
-```python
-B = ax.get_area(ax.plot(f_top, x_range=[0,12,0.15]),
-                x_range=(0, 12), color=TEAL, opacity=0.66,
-                bounded_graph=ax.plot(f_bottom, x_range=[0,12,0.15]))
-```
-
-### 坑 6｜别拿 numpy 向量做比较
-
-```python
-if side == UP:      # ❌ ValueError: truth value of an array ... is ambiguous
-```
-
-`UP` / `DOWN` 是 numpy 数组。方向判断用 `+1 / -1` 数字标记，不要用 `UP`/`DOWN` 比较。
-
-### 坑 7｜柱子的底边会「浮空」
-
-```python
-b = Rectangle(width=0.52, height=some_value)
-b.move_to(ax.c2p(i + 0.5, 0), aligned_edge=DOWN)     # ❌ 底边跟着中心走，柱子悬空/入地
-```
-
-`move_to` 移动的是**包围盒中心**。正确做法是先算出像素高度，再定中心：
-
-```python
-base = ax.c2p(0, 0)[1]                # 基线像素 y
-y = ax.c2p(0, value)[1]               # 顶端像素 y
-h = abs(y - base)
-b = Rectangle(width=w, height=h)
-b.move_to(at(ax.c2p(i + 0.5, 0)[0], base + h / 2))   # 中心在基线 + 半高
-```
-
-**柱状图/瀑布图/甘特图条/柱状进度条全都要这么写。** 库里的 `bars_on_axis()` 就是干这个的。
-
-### 坑 8｜子节点间距小于卡片宽度 ⇒ 重叠
-
-组织架构图里三个卡片中心间距 1.2、卡宽 1.32 → 必然叠在一起。
-**规则：卡片中心间距必须 > 卡片宽度 + 0.2。** 排布前先定卡宽，再按宽度算间距。
-
-### 坑 9｜`title_bar` 里各元素分别贴左上角 ⇒ 标签压标题
-
-```python
-p.to_corner(UL, buff=0.34)      # ❌ 每个都贴左上角 → 标签和标题重叠
-t.to_corner(UL, buff=0.34)      # ❌
-```
-
-正确：先 `arrange` 再整体贴：
-
-```python
-g = VGroup(*gs).arrange(DOWN, buff=0.18, aligned_edge=LEFT)
-g.to_corner(UL, buff=0.34)
-```
-
-### 坑 10｜绝对定位算出来的宽度会溢出画布
-
-字号 × 字数算中文宽度极不可靠（本次实测同一条副标题从「刚好贴边」到「被裁掉半行」
-只差一次字号调整）。**不要估，用 `safe_board()` 自动兜底。**
-
-### 坑 11｜数据里的小数没向上取整 ⇒ 顶部出界
-
-瀑布图算完最终值 166，y 轴只设到 120 ⇒ 柱子戳出图外。
-**算完数据先取 max 再定 y_range，并留 10~20% 余量。**
-
-### 坑 12｜热力图行标签压住色块
-
-行标签 x 偏移量小于色块半宽就会叠上。偏移量 = 色块宽/2 + 标签宽/2 + 间隙。
-
-### 坑 13｜SWOT/矩阵类四象限内容「都一样」
-
-复用同一个 items 列表给四个格子 → 四格内容完全相同，图表毫无意义。
-**四象限的每一格必须是独立内容。**
-
-### 坑 14｜图例压住坐标轴刻度
-
-图例 `move_to(at(0, -3.05))` 放在轴下方，正好盖住 x 轴数字。
-**图例优先放右上/右下空白区，放轴下方前先确认那里没刻度。**
-
-### 坑 15｜哈希缓存导致「拿到上一轮旧图」
-
-场景文件没改动时 manim 直接跳过渲染（用时 1~2 s 就是命中了，真实渲染 3~6 s），
-`media_dir` 里留着上次的 PNG。**每轮换一个全新的 `--media_dir` 目录名**
-（`./_media_r1`、`./_media_r2`…），并按 mtime ≥ 本次启动时间过滤产物。
-
-> **不要 `rm -rf` 整个 `media_dir`**：批量删除钩子会给非零退出码，还可能连带删掉同批次的其它产物。
-> **换目录名是零风险做法**——旧目录留着不影响交付，交付前清理即可。
-> 封面路线的同源问题与处置见 `wechat-cover.md` §三。
-
----
-
-## 四、版面对齐：三层安全区机制（照抄）
+## 三、版面对齐：三层安全区机制（照抄）
 
 这是本次最有价值的沉淀，**所有图表都用它**。
 
@@ -237,7 +86,7 @@ SAFE = {"x_min": -6.95, "x_max": 6.95, "y_min": -3.72, "y_max": 3.90}
 
 ---
 
-## 五、工具脚本（已实测可用）
+## 四、工具脚本（已实测可用）
 
 ### 探针：拿到完整 traceback
 
@@ -270,31 +119,29 @@ manifest 格式：
 
 ---
 
-## 六、公共库 `scripts/charts_lib.py`（直接复制去用）
+## 五、公共库 `scripts/charts_lib.py`（直接复制去用）
 
 **位置**：`<技能目录>/scripts/charts_lib.py`。把它复制到场景文件同目录，然后
 `from charts_lib import *`，配色/画布/坐标轴/卡片/安全区全都现成。
-**库本体是唯一权威版本，本文档不复刻它的源码**——要看实现直接打开脚本。
 
 | 分组 | 成员 |
 |---|---|
 | 画布与配色 | `config.frame_width/height`（16:9）、`INK`/`BLUE`/`TEAL`/`ORAN`/`RED`/`PURPLE`/`GRAY`/`AXC`/`GRIDC`/`BG`、`FONT`、`PALETTE` |
-| 定位 | `at(x, y)`（二维坐标转三维，坑 3/4 的解药）、`put` |
+| 定位 | `at(x, y)`（二维坐标转三维，坑3/4 的解药）、`put` |
 | 坐标轴 | `std_axes(x_range, y_range, x_len, y_len, x_step, y_step, y_fmt, c2p_shift)`（返回 `(grid, ax)`，刻度数字默认隐藏）、`add_x_ticks` / `add_y_ticks`、`dashed_guide(ax, y)`、`vline(ax, x)` |
-| 数据图元 | `bars_on_axis(ax, values, labels, colors, x_offset, width, highlight, hi_color)`（柱底钉轴，坑 7 的解药） |
+| 数据图元 | `bars_on_axis(ax, values, labels, colors, x_offset, width, highlight, hi_color)`（柱底钉轴，坑7 的解药） |
 | 文字与容器 | `box_text`（文字+卡片一体，文字按卡片中心算）、`card`、`diamond`、`pill`、`note`、`legend(items, marker="dot"/"square"/"line")` |
-| 结构 | `arrow(p0, p1)`（端点二维三维都吃，函数内补齐）、`title_bar(main, sub, tag)`（先 arrange 再贴左上角，坑 9 的解药） |
-| 收尾 | `SAFE`（安全区常量）、`safe_board(board, move_to, scale)`（超界自动缩放 + 定位，坑 10 的解药） |
+| 结构 | `arrow(p0, p1)`（端点二维三维都吃，函数内补齐）、`title_bar(main, sub, tag)`（先 arrange 再贴左上角，坑9 的解药） |
+| 收尾 | `SAFE`（安全区常量）、`safe_board(board, move_to, scale)`（超界自动缩放 + 定位，坑10 的解药） |
+
+库本体是唯一权威版本，本文档不复刻它的源码——要看实现直接打开脚本。
 
 常用片段：
 
 ```python
 config.frame_width, config.frame_height = 14.222, 8.0
-
-ax_range = [0, 12, 1]
-grid, ax = std_axes(ax_range, [0, 100, 20])
+grid, ax = std_axes([0, 12, 1], [0, 100, 20])
 bars = bars_on_axis(ax, [32, 58, 41], ["一月", "二月", "三月"])
-
 content = VGroup(bars)
 safe_board(content, move_to=(-0.35, -0.25))
 self.add(title_bar("主标题", "副标题", "标签"), content)
@@ -302,7 +149,9 @@ self.add(title_bar("主标题", "副标题", "标签"), content)
 
 ---
 
-## 七、各类图表的关键实现要点
+## 六、各类图表的关键实现要点
+
+> 表里的「坑 N」编号指向 `references/chart-pitfalls.md` 的对应条目。
 
 | 图表 | 核心做法 | 必踩坑 |
 |---|---|---|
@@ -332,25 +181,17 @@ self.add(title_bar("主标题", "副标题", "标签"), content)
 
 ---
 
-## 八、交付
+## 七、交付
 
-1. 图片放到用户指定目录，起中文名（`01_柱状图.png` 这种序号前缀便于排序）
-2. `present_files`：图片按浏览优先级排，源码放后面
-3. 回复里说清：**纯 manim 代码绘制、零 AI 生图**、字体授权（SIL OFL 1.1 可商用）、
-   实际画了哪几类图
+图片放到用户指定目录并起中文名（`01_柱状图.png` 这种序号前缀便于排序）；
+`present_files` 图片在前、源码在后。回复里说清：**纯manim 代码绘制、零 AI 生图**、
+字体授权（SIL OFL 1.1 可商用）、实际画了哪几类图。
 
 ---
 
-## 九、参考成品与性能基线
+## 八、参考成品与性能基线
 
 成品在 `D:\software\workBuddyWorkspace\manim_charts\`
 （含 `charts_lib.py` + 场景文件 + `README.md`），1920×1080 全 16:9。
-
-耗时基线（用于按 §一 步骤 4 估时）：
-
-| 项 | 实测 |
-|---|---|
-| 单张 PNG 渲染 | 3~6 s |
-| 一批全渲 | 约 1.5 s/张 |
-| 探针（dry_run，不渲染像素） | 秒级 |
-| 版面自检 | 4 s/张 |
+耗时基线（用于按 §一 步骤 4 估时）：单张渲染 3~6 s、一批全渲约 1.5 s/张、
+探针秒级、版面自检 4 s/张。

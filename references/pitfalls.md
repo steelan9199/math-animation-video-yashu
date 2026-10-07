@@ -108,16 +108,10 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 | `LXGW WenKai GB` | ✅ 用户级 | ✅ 无 WARNING |
 | 上述楷体名**去掉尾部 ` GB` 后缀** | — | ❌ 回退 + WARNING |
 
-> 两个 family 都在**用户目录**（`C:\Users\Administrator\AppData\Local\Microsoft\Windows\Fonts`），
+> 两个 family 都在**用户目录**（`AppData\Local\Microsoft\Windows\Fonts`），
 > 不在 `C:\Windows\Fonts`。**只扫系统目录会全部漏掉**（本机实测漏过一次，误判「没装」）。
-
-**查是否安装用 `windows-font-finder-yashu` 技能，别手写命令**
-—— 本技能只关心「Manim 能不能用这两个 family 名」，安装与授权是那个技能的职责。
-```powershell
-# 权威查法：列出 family / 注册表名 / 路径，还能看授权与商用风险
-& "D:\software\uv\python\cpython-3.14.7-windows-x86_64-none\python.exe" `
-  "~\.workbuddy\skills\windows-font-finder-yashu\scripts\list_fonts.py" --kw "霞鹜" --out _f.txt
-```
+> 查是否安装用 `windows-font-finder-yashu` 技能（它还列授权与商用风险），
+> 本技能只关心「Manim 能不能用这两个 family 名」。
 
 若只想确认「Manim 认不认白名单这两个」，让 Manim 自己报：
 
@@ -125,10 +119,8 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 & "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe" -c "from manim import *; [print(n, '-> OK' if Text('测试', font=n) else '') for n in ['LXGW WenKai GB','Noto Sans SC']]" > _fchk.txt 2>&1
 ```
 
-日志里出现 `falling back` 就是没装/名字写错了。
-
-**顺带一条**：Manim 的 WARNING 里会列出**本机全部可用 family 名**，
-排查时直接看这段列表最快，不用另跑命令。
+日志里出现 `falling back` 就是没装/名字写错了。**顺带一条**：Manim 的 WARNING 里会
+列出**本机全部可用 family 名**，排查时直接看这段列表最快，不用另跑命令。
 
 **选哪种**：讲论文/学术内容优先 `Noto Sans SC`（黑体，正式排版），
 讲基础数学/给中学生看用 `LXGW WenKai GB`（楷体，教材手写感）。

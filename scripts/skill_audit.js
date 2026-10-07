@@ -27,16 +27,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = path.resolve(__dirname, "..");
 
 // ── 红线（与《自进化与维护.md》§九 必须同步改）────────────────────────
-// 唯一红线是字符数（skillChars）。不设tok 线：tok 靠经验公式估算，用它当红线会对
-// 纯中文改动误报，而砍内容去凑一个近似数字只会误伤 T1 级知识。
+// 所有文档统一 10000 字符红线（SKILL.md 与 references/*.md 同限）。
+// 超了就拆分，不上调阈值——见《自进化与维护.md》§九。
 const BUDGET = {
-  skillChars: 10000, // 常驻层 SKILL.md 字符数上限（唯一红线）
-  refChars: 20000, // 单篇 references/*.md（命中才读）
-  incidentChars: 24000, // 单篇事故复盘（只在重犯同源事故时才读）
+  docChars: 10000, // SKILL.md 与每篇 references/*.md 的字符数上限
 };
 
-// 「整篇读」阈值：超过此值，SKILL.md 应标注「先 Grep 局部读」
-const GREP_FIRST_CHARS = 12000;
+// 「整篇读」阈值：超过此值，SKILL.md 路由表应标注「先 Grep 局部读」。
+// 必须小于 docChars，否则永远不会触发。
+const GREP_FIRST_CHARS = 8000;
 
 // ── 字体白名单（与 SKILL.md 硬约束同步）──────────────────────────────
 const FONT_ALLOW = new Set(["Noto Sans SC", "LXGW WenKai GB"]);
@@ -149,6 +148,7 @@ function checkFonts(docs) {
 }
 
 // ── 闸 4：体量红线 ──────────────────────────────────────────────────
+// 所有文档同限 10000 字符，超了必须拆分。
 function checkSize(docs) {
   const red = [];
   const rows = [];
@@ -157,15 +157,12 @@ function checkSize(docs) {
     const r = rel(d);
     rows.push({ file: r, chars: text.length });
 
-    if (r === "SKILL.md") {
-      if (text.length > BUDGET.skillChars)
-        red.push({ what: "SKILL.md 超字符红线", detail: `${text.length} > ${BUDGET.skillChars} 字符` });
-    } else if (r.endsWith(".md") && r.includes("incidents")) {
-      if (text.length > BUDGET.incidentChars)
-        red.push({ what: r, detail: `${text.length} > ${BUDGET.incidentChars} 字符` });
-    } else if (r.startsWith("references/") && r.endsWith(".md")) {
-      if (text.length > BUDGET.refChars)
-        red.push({ what: r, detail: `${text.length} > ${BUDGET.refChars} 字符` });
+    const isDoc = r === "SKILL.md" || (r.startsWith("references/") && r.endsWith(".md"));
+    if (isDoc && text.length > BUDGET.docChars) {
+      red.push({
+        what: r,
+        detail: `${text.length} > ${BUDGET.docChars}字符 ⇒ 拆分，不要上调阈值`,
+      });
     }
   }
   return { red, rows };
@@ -194,8 +191,9 @@ function main() {
   console.log("\x1b[36m══ skill_audit：自进化门禁 ══\x1b[0m");
   console.log(`技能目录：${SKILL_DIR}`);
   console.log(
-    `\n体量：SKILL.md ${skillChars} 字符 / 红线 ${BUDGET.skillChars}` +
-      (argv.includes("--top") ? "\n单篇文档（超「整篇读」阈值会标 ⚠️）：" : ""),
+    `\n体量红线：每篇文档 ≤ ${BUDGET.docChars} 字符（超了拆分）` +
+      `  ·  SKILL.md 现 ${skillChars}` +
+      (argv.includes("--top") ? "\n单篇文档：" : ""),
   );
   for (const r of rows.filter((x) => x.file.endsWith(".md") && x.file !== "SKILL.md")) {
     const mark = r.chars > GREP_FIRST_CHARS ? "  ⚠️ 建议标注「先 Grep 局部读」" : "";

@@ -144,7 +144,7 @@ points[:, 1] *= factor * zoom
 
 所以 `focal_distance` 越大越接近正交投影（本次用 30.0）。
 **这就是为什么「把物体摆到原点 + 设 zoom」不能保证画面居中**——
-必须用 `cam.project_points()` 反算，见 `scene-template.md` 的 3D-2。
+必须用 `cam.project_points()` 反算，见 `scene-template-3d.md` 的 3D-2。
 
 ### 3.4 颜色工具
 
@@ -173,7 +173,8 @@ points[:, 1] *= factor * zoom
 
 - `SKILL.md` 硬约束 2—— 版本与锚点守门（速查版）
 - `scripts/check_manim_version.py` —— **版本 + 13 项 API锚点校验**，锚点漂移即退出码 1
-- `references/scene-template.md` —— 二维模板 + **真 3D 场景模板**（含 `fit_zoom` 反算实现）
+- `references/scene-template.md` —— **二维**模板（最小可靠模板、卡片布局、参数扫描）
+- `references/scene-template-3d.md` —— **真 3D 场景模板**（3D-1~3D-10，含 `fit_zoom` 反算实现）
 - `references/pitfalls.md` —— 已知坑全集（配色 / 动画机制 / 三维场景）
 - `references/chart-generation.md` —— 图表路线的坑与`charts_lib.py` 公共库
 - `references/wechat-cover.md` —— 公众号封面路线（尺寸、版式、字体授权）
