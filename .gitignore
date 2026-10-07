@@ -4,7 +4,8 @@ __pycache__/
 # 门禁历史（观测数据，不进版本库；用 --save 追加）
 scripts/.skill-audit-history.jsonl
 
-# 改文档前的本地备份（不进版本库；回滚靠 git tag，不靠它）
+# 临时垫片：仅「无 tag 兜底的大重构前」临时拷贝，改完提交后立刻删。
+# 常规备份一律用 git（见 references/自进化与维护.md §十）
 _backup/
 
 # 渲染/探针产物
