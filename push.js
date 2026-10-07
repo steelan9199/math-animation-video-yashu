@@ -38,12 +38,19 @@ function die(code, msg) {
   process.exit(code);
 }
 
-// 本机坑（2026-10-07 实测定位）：**只有 spawnSync 失效**，异步 spawn/execFile 正常。
-// 实测证据：spawnSync 对 git / cmd / powershell / 甚至不存在的可执行文件一律返回 EBUSY；
-// 同一进程内 `await execFile("git", ["--version"])` 正常返回 git 版本。
-// 根因是 spawnSync 的同步进程创建路径在本机被沙箱/作业对象挡住，与命令无关、
-// 与 PATH 无关、shell:true 与绝对路径均无效。
-// 对策：**全部 git 调用改用异步 execFile**，脚本即可自行驱动 git，无需手工兜底。
+// 本机坑（2026-10-07 四组对照实测定位）：**只有 spawnSync 这一个 API 不可用**。
+// 现象：spawnSync 对 git / cmd / pwsh / 甚至「不存在的可执行文件」一律返回 EBUSY；
+//   同一进程内 `await execFile(...)` 正常。
+// 排除过的原因（都实测否掉了，不要再往这些方向猜）：
+//   ✗ 不是 git 的问题     —— 不存在的可执行文件也报同样的 EBUSY
+//   ✗ 不是 PATH / shell:true / cwd / 绝对路径问题 —— 全部试过，一律无效
+//   ✗ 不是 WorkBuddy 沙箱 —— dangerouslyDisableSandbox=true 与独立 PowerShell 进程里同样失败
+//   ✗ 不是某个 node 构建的 bug —— v22.13.1 与 v22.22.2 两个独立二进制表现完全一致
+//   ✗ 不是 Windows 限制 git/pwsh/node —— 在 pwsh 里直接敲 git 完全正常
+//   ✓ 结论：**本机 git / pwsh / node 全部正常，只有 spawnSync 这一个同步入口被拦**。
+//     注意区分：你在 pwsh 里敲 git 是「PowerShell→git」，不经 node，所以正常；
+//     这里是「node→spawnSync→git」，卡在 node 自己的同步 API 上。
+// 对策：全部 git 调用改用异步 execFile，脚本即可自行驱动 git，无需手工兜底。
 
 const SPAWN_BROKEN = Symbol("spawn-broken");
 
