@@ -15,7 +15,7 @@
 //
 // 退出码：0 成功 · 1 失败 · 2 门禁红灯（未 --force） · 3 仓库校验失败
 
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,37 +38,36 @@ function die(code, msg) {
   process.exit(code);
 }
 
-// 本机坑：node 运行时 spawn 任何子进程都可能返回 EBUSY（连不存在的可执行文件也是 EBUSY
-// 而非 ENOENT），此时无法用脚本驱动 git。表现为 `spawnSync git EBUSY`。
-// 对策：把等价的手工命令原样打出来，人/AI 在 PowerShell 里跑，不要在这里硬重试。
+// 本机坑（2026-10-07 实测定位）：**只有 spawnSync 失效**，异步 spawn/execFile 正常。
+// 实测证据：spawnSync 对 git / cmd / powershell / 甚至不存在的可执行文件一律返回 EBUSY；
+// 同一进程内 `await execFile("git", ["--version"])` 正常返回 git 版本。
+// 根因是 spawnSync 的同步进程创建路径在本机被沙箱/作业对象挡住，与命令无关、
+// 与 PATH 无关、shell:true 与绝对路径均无效。
+// 对策：**全部 git 调用改用异步 execFile**，脚本即可自行驱动 git，无需手工兜底。
+
 const SPAWN_BROKEN = Symbol("spawn-broken");
 
+/** 异步版 runGit：成功返回 stdout，失败抛错。 */
 function runGit(args, options = {}) {
-  const result = spawnSync("git", args, { encoding: "utf8", ...options });
-  if (result.error) {
-    if (result.error.code === "EBUSY" || result.error.code === "EAGAIN") throw SPAWN_BROKEN;
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(result.stderr?.trim() || `git ${args.join(" ")} failed`);
-  }
-  return result.stdout || "";
+  return new Promise((resolve, reject) => {
+    execFile("git", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, ...options },
+      (err, stdout, stderr) => {
+        if (err) {
+          if (err.code === "EBUSY" || err.code === "EAGAIN") return reject(SPAWN_BROKEN);
+          return reject(new Error(stderr?.trim() || err.message || `git ${args.join(" ")} failed`));
+        }
+        resolve(stdout || "");
+      });
+  });
 }
 
-/** SPAWN_BROKEN 时打印可手工执行的等价命令 */
-function manualFallback(pending) {
-  console.error(
-    [
-      "",
-      "\x1b[33m⚠ 本机 node 无法 spawn 子进程（EBUSY），脚本不能驱动 git。\x1b[0m",
-      "  请在 PowerShell 里手工执行以下等价命令：",
-      "",
-      ...pending.map((a) => "    git " + a.map((x) => (/\s/.test(x) ? `"${x}"` : x)).join(" ")),
-      "",
-      "\x1b[90m  注意：先跑门禁 node scripts/skill_audit.js，通过后再执行上面两条。\x1b[0m",
-      "",
-    ].join("\n"),
-  );
+/** 异步 tag 查询：tag 不存在返回 false，不抛错。 */
+function tagExists(tagName) {
+  return new Promise((resolve) => {
+    execFile("git", ["-C", SKILL_DIR, "rev-parse", "--verify", `refs/tags/${tagName}`],
+      { encoding: "utf8", timeout: 20000 },
+      (err) => resolve(!err));
+  });
 }
 
 /** 读取 SKILL.md frontmatter 的 version，用作 tag 前缀 */
@@ -83,8 +82,8 @@ function readSkillVersion() {
 }
 
 // ── 闸 0：确认脚本操作的确实是本技能仓库（不是别人的） ────────────────
-function verifyRepo() {
-  const top = runGit(["-C", SKILL_DIR, "rev-parse", "--show-toplevel"]).trim();
+async function verifyRepo() {
+  const top = (await runGit(["-C", SKILL_DIR, "rev-parse", "--show-toplevel"])).trim();
   // ⚠️ 同一目录有 C:/Users/... 与 D:/CToD/... 两个视图，必须 realpath 归一后比
   const realTop = fs.realpathSync(top);
   const realSkill = fs.realpathSync(SKILL_DIR);
@@ -92,71 +91,68 @@ function verifyRepo() {
   if (norm(realTop) !== norm(realSkill)) {
     die(3, `仓库根校验失败：\n  skill_dir  realpath = ${realSkill}\n  git toplevel realpath = ${realTop}\n  两者不是同一目录，拒绝操作。`);
   }
-  const origin = runGit(["-C", SKILL_DIR, "remote", "get-url", "origin"]).trim();
+  const origin = (await runGit(["-C", SKILL_DIR, "remote", "get-url", "origin"])).trim();
   if (origin !== EXPECTED_ORIGIN) {
     die(3, `origin 校验失败：\n  期望 ${EXPECTED_ORIGIN}\n  实际 ${origin}\n  拒绝推送到非本技能仓库。`);
   }
   return { top: realTop, origin };
 }
 
-// ── 闸 1：自进化门禁 ───────────────────────────────────────────────
+// ── 闸 1：自进化门禁（异步执行 node自身；spawnSync 在本机不可用）──
 function runAudit() {
   const script = path.join(SKILL_DIR, "scripts", "skill_audit.js");
   if (!fs.existsSync(script)) {
     console.log("\x1b[33m门禁脚本不存在，跳过（scripts/skill_audit.js）\x1b[0m");
-    return 0;
+    return Promise.resolve(0);
   }
   console.log("\x1b[36mRunning self-evolution gate (skill_audit.js)...\x1b[0m");
-  const r = spawnSync(process.execPath, [script], { encoding: "utf8", stdio: "inherit" });
-  return r.status ?? 1;
-}
-
-function tagExists(tagName) {
-  return spawnSync("git", ["-C", SKILL_DIR, "rev-parse", "--verify", `refs/tags/${tagName}`]).status === 0;
+  return new Promise((resolve) => {
+    execFile(process.execPath, [script], { stdio: "inherit" }, (err) => resolve(err ? 1 : 0));
+  });
 }
 
 /** tag 名：v<SKILL.md version>-<时间戳>，便于按版本回滚 */
-function generateTagName(version) {
+async function generateTagName(version) {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
   const base = `v${version}-${stamp}`;
   let name = base;
   let i = 1;
-  while (tagExists(name)) name = `${base}-${i++}`;
+  while (await tagExists(name)) name = `${base}-${i++}`;
   return name;
 }
 
-function createAndPushTag(version) {
-  const tagName = generateTagName(version);
+async function createAndPushTag(version) {
+  const tagName = await generateTagName(version);
   const tagMessage = `v${version} @ ${new Date().toLocaleString("zh-CN")}`;
   console.log(`\x1b[36mCreating tag: ${tagName}...\x1b[0m`);
-  runGit(["-C", SKILL_DIR, "tag", "-a", tagName, "-m", tagMessage]);
-  runGit(["-C", SKILL_DIR, "push", "origin", tagName], { stdio: "inherit" });
+  await runGit(["-C", SKILL_DIR, "tag", "-a", tagName, "-m", tagMessage]);
+  await runGit(["-C", SKILL_DIR, "push", "origin", tagName]);
   console.log(`\x1b[32m✔ tag ${tagName} 已推送（回滚落点）\x1b[0m`);
   console.log(`\x1b[90m  回滚代码：git -C "${SKILL_DIR}" checkout ${tagName} -- .\x1b[0m`);
   return tagName;
 }
 
 /**
- * 主流程。
- * 注意 git 调用全部经由 runGit；一旦本机 spawn 不可用（EBUSY），
- * 走手工降级路径——打印等价命令让人执行，而不是在这里空转重试。
+ * 主流程（全异步）。
+ * git 调用全部经由 runGit → execFile。**不要改回 spawnSync**：
+ * 本机 spawnSync 一律返回 EBUSY（对任何命令都失败），异步 execFile 正常。
  */
-function main() {
-  // `--check` 只跑门禁，不碰 git（本机 node 可能spawn 不了 git，见 manualFallback）
+async function main() {
+  // `--check` 只跑门禁，不碰 git
   if (CHECK_ONLY) {
-    const code = runAudit();
+    const code = await runAudit();
     console.log(code === 0 ? "\x1b[36m--check：门禁通过。\x1b[0m" : "\x1b[36m--check：门禁有红灯。\x1b[0m");
     process.exit(code);
   }
 
   // 阶段 0：闸门与仓库校验
-  const repo = verifyRepo();
+  const repo = await verifyRepo();
   console.log(`\x1b[36m仓库：${SKILL_DIR}\x1b[0m`);
   console.log(`\x1b[90morigin：${repo.origin}\x1b[0m`);
 
-  const auditCode = runAudit();
+  const auditCode = await runAudit();
   if (auditCode !== 0) {
     if (!FORCE) {
       die(2, `门禁未通过（退出码 ${auditCode}），已拒绝提交推送。\n  修完再推；确实需要强推用：node push.js --force "<说明>"`);
@@ -166,35 +162,31 @@ function main() {
 
   // 阶段 2：提交推送
   const version = readSkillVersion();
-  const status = runGit(["-C", SKILL_DIR, "status", "--porcelain"]);
+  const status = await runGit(["-C", SKILL_DIR, "status", "--porcelain"]);
   if (!status.trim()) {
     console.log("\x1b[32m无改动，无需提交。\x1b[0m");
     process.exit(0);
   }
-  runGit(["-C", SKILL_DIR, "add", "-A"]);
-  runGit(["-C", SKILL_DIR, "commit", "-m", message], { stdio: "inherit" });
-  runGit(["-C", SKILL_DIR, "push"], { stdio: "inherit" });
+  await runGit(["-C", SKILL_DIR, "add", "-A"]);
+  await runGit(["-C", SKILL_DIR, "commit", "-m", message]);
+  await runGit(["-C", SKILL_DIR, "push"]);
   console.log("\x1b[32m✔ 已提交并推送。\x1b[0m");
 
   // 阶段 3：打回滚 tag
   if (NO_TAG) {
     console.log("\x1b[90m--no-tag：本次未打 tag。\x1b[0m");
   } else {
-    createAndPushTag(version);
+    await createAndPushTag(version);
   }
 }
 
-try {
-  main();
-} catch (e) {
+main().catch((e) => {
   if (e === SPAWN_BROKEN) {
-    manualFallback([
-      ["-C", SKILL_DIR, "status", "--porcelain"],
-      ["-C", SKILL_DIR, "add", "-A"],
-      ["-C", SKILL_DIR, "commit", "-m", message],
-      ["-C", SKILL_DIR, "push"],
-    ]);
+    console.error(
+      "\x1b[33m⚠ 连异步 execFile 也返回 EBUSY —— 本机进程创建被全面阻断。\x1b[0m\n" +
+        "  请在 PowerShell 里手工执行：git add -A / git commit / git push",
+    );
     process.exit(4);
   }
   die(1, `push 失败：${e.message}`);
-}
+});
