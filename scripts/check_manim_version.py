@@ -4,7 +4,7 @@
 
 为什么要守锚点
 ------------
-`references/manim-api-troubleshooting.md` §3 里那些论断（`Scene.time` 存在、
+`references/manim-api-troubleshooting.md` §三 实战校验记录 里那些论断（`Scene.time` 存在、
 `CYAN` 不导出、`CENTER` 不存在、`AnnularSector` 顶层已导出…）是**实测结论**，
 不是文档抄录。Manim 一升级它们就可能失效，而失效方式是**静默的**：
 `hasattr` 变成 False 只在运行时炸，代码看着完全正常。
@@ -13,7 +13,7 @@
 
 ⚠️ 本文件自身的注释也可能写错——注释与检查项同源，不能拿代码互证。
 改结论前先实跑本脚本看真实输出，别靠读代码推断
-（见 `references/自进化与维护.md` §11.1 循环论证陷阱）。
+（见 `references/mcp-repo-rules.md` §一 取证门槛 的循环论证陷阱）。
 
 用法:
     python check_manim_version.py          # 人读的报告
@@ -147,7 +147,7 @@ def main() -> int:
               f"不是{EXPECTED_VERSION}，停止对本技能的任何调用。")
     for name, _, actual in failed:
         print(f"🚫 锚点漂移：{name}（实测 {actual}）")
-    print("   先到 references/manim-api-troubleshooting.md §3 更新对应结论，"
+    print("   先到 references/manim-api-troubleshooting.md §三 实战校验记录 更新对应结论，"
           "再开工——否则 references 里的 API 写法会静默失效。")
     return 1
 

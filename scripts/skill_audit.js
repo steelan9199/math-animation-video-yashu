@@ -115,20 +115,44 @@ function checkNegative(docs) {
 }
 
 // ── 闸 3：字体白名单 —— 零容忍 ──────────────────────────────────────
-// SKILL.md 硬约束 1：全库只允许 Noto Sans SC 与 LXGW WenKai GB 两个字体名。
+// SKILL.md 硬约束 1：全库只允许两个白名单字体名。
 // 白名单外的字体名**在任何位置都不许出现**，包括正文、表格、注释、反例。
 // 因此不设行级豁免：想提别的字体就不写，想教人别写就不举那个名字。
+// ⚠️ 唯一例外是本文件自身：FONT_FAMILY_NAMES 必须**逐个字面列出**被拦的族名，
+//    否则这张表写不出来（实测：豁免前本文件报 22 处，全是自己的表和注释）。
+//    这与 NEGATIVE_EXEMPT 同一道理——禁令的载体必须能引述被禁的词形。
 const FONT_RE = /(?:font|set_font\(\s*font)\s*[=:]\s*["']([^"']+)["']/gi;
-// 反查用：扫描全文任意位置的疑似字体名（限「已知前缀 + 含空格的 family」形态，避免误伤普通英文词）。
-// ⚠️ 前缀表必须覆盖白名单两个字体的**首词**，否则「白名单内字体名写错后缀」这类反例
-//    （如楷体名漏掉尾部 GB）会绕过闸 3 —— 本技能自己就犯过这个错。
-const FONT_NAME_SCAN =
-  /\b(?:Noto|LXGW|Source Han|Alibaba|PuHui|YaHei|PingFang|SimHei|SimSun|Helvetica|Arial|Times)\s+[A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z0-9]+)?/g;
+// 反查用：扫描全文任意位置的疑似字体名（限「已知族名 + 可选后缀词」形态，避免误伤普通英文词）。
+//
+// 为什么用「枚举族名 + 可选后缀」而不是「首词前缀」：
+//   首词式前缀表有两个实测漏洞——① 「厂商前缀 + 字体名」型（微软雅黑的全名就是这种，
+//   本机字体安装器也用这种写法）会整个绕过；② 末尾固定两段词时，**裸名**
+//   （两字族名而非三字）匹配不到。枚举式两种都能覆盖。
+// ⚠️ 族名表必须覆盖白名单两个字体的首词，否则「白名单内字体名写错后缀」这类反例
+//   （如楷体名漏掉尾部 GB）会绕过闸 3 —— 本技能自己就犯过这个错。
+// ⚠️ 本表里的名字就是被拦对象，所以本文件必须自豁免（见 NEGATIVE_EXEMPT 同理）。
+//    想举反例别把真名写出来，用「微软雅黑全名」「某楷体名」这种描述性说法。
+const FONT_FAMILY_NAMES = [
+  "Microsoft YaHei", "Microsoft JhengHei", // 厂商前缀型，漏了最容易被钻
+  "Noto Sans", "Noto Serif", "LXGW WenKai", "Source Han", "思源黑体",
+  "Alibaba PuHui", "PuHuiTi", "YaHei", "PingFang", "SimHei", "SimSun",
+  "DengXian", "STSong", "STHeiti", "STFangsong", // ctex 默认 CJK 族名
+  "Helvetica", "Arial", "Times New Roman", "Courier New",
+];
+const FONT_NAME_SCAN = new RegExp(
+  "\\b(?:" + FONT_FAMILY_NAMES.map((n) => n.replace(/ /g, "\\s+")).join("|") + ")" +
+    "(?:[\\s一-鿿]+[A-Za-z一-鿿][A-Za-z0-9]*){0,2}",
+  "g",
+);
 
 function checkFonts(docs) {
   const bad = [];
   for (const d of docs) {
-    if (!(d.endsWith(".py") || d.endsWith(".md"))) continue;
+    // 本文件自身豁免：它必须逐字列出被拦的族名（见上方 FONT_FAMILY_NAMES 处的说明）。
+    if (path.basename(d) === "skill_audit.js") continue;
+    // .js 也要扫：文档里写了「全目录、.js 也扫」，窄化到 .py/.md 会让闸 3 形同虚设
+    // （已实测：坏字体名写在 .js 里不报，改成 .py 才报）。
+    if (!(d.endsWith(".py") || d.endsWith(".md") || d.endsWith(".js"))) continue;
     readText(d)
       .split(/\r?\n/)
       .forEach((line, i) => {

@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 用 math-animation 连接器(MCP)把数学/物理/论文知识点与题目渲染成教学动画视频（MP4、无配音），并能用同一套manim 管线生成微信公众号封面图与各类数据/结构图表（柱状图、折线图、饼图、流程图、思维导图、鱼骨图、甘特图、桑基图、热力图、雷达图、组织架构图等，清单见 references/chart-generation.md）。激活条件：用户消息含以下关键词之一：`生成数学动画`、`数学动画视频`、`把 XX 做成动画视频`、`做数学讲解动画`、`真 3D 立体动画`、`排查 Manim 报错`、`论文动画`、`公式可视化`、`动画讲解`、`可视化这个原理`、`manim`、`公众号封面`、`公众号配图`、`做封面`、`文章头图`、`封面图`、`画图表`、`做图表`、`生成图表`、`数据可视化`。
-version: 1.7.0
+version: 1.8.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -29,32 +29,40 @@ version: 1.7.0
    这两个名字之外的一切字体名——不论是否可商用、是否已安装、**是否只是反例**——**一律不得出现在本技能任何文件里**
    （`font=`、正文、表格、注释都算，门禁自动拦）。需要英文数字**照样写 `Noto Sans SC`**。
    漏掉 ` GB` 会静默回退；粗体用 `weight="BOLD"`。详见 `references/pitfalls.md`。
-2. **🔒 版本锁定 Manim Community Edition 0.21.0**，勿升级、勿混用 3b1b 版。开工前跑
-   `scripts/check_manim_version.py`（校验版本号 + API 锚点）。**退出码非 0 就停下**，
-   按脚本提示先修 `references/manim-api-troubleshooting.md` §三 实战校验记录 的结论。
-3. **渲染一律 `run_in_background` + `dangerouslyDisableSandbox`**。工具调用一返回/超时，
+2. **🔒 版本锁定 Manim Community Edition 0.21.0**，勿升级、勿混用 3b1b 版。
+   **三条路线开工前都跑** `scripts/check_manim_version.py`（校验版本号 + API 锚点）。
+   **退出码非 0 就停下**，按脚本提示先修 `references/manim-api-troubleshooting.md` §三 实战校验记录 的结论。
+3. **🔶 渲染一律 `run_in_background` + `dangerouslyDisableSandbox`**。工具调用一返回/超时，
    它派生的子进程会被一起 SIGTERM 杀掉 ⇒ 表现为 `Exit Code: 1 / SIGTERM` 而日志空。
    **这不是渲染失败，是调用先结束把 Manim 带走了。** 后台启动 → `TaskOutput` 阻塞等待
    （会收到完成通知），**不要 `sleep` 硬等**。
+   ⚠️ **MCP 的 `render_animation` 走不到这条**：MCP 工具调用不支持后台参数，
+   必须**先按 §三 预估耗时**（≥110 s 就别调 MCP），再选 `render_video.py`。
 4. **卡住 30 秒后先取证据，不要干等**（复盘见 `references/incidents/mandelbulb-postmortem.md`）。
-   判据：`_render_tmp` 最新目录里**只有 `scene.py`、无任何媒体文件 ⇒ 不是慢，是跑不动**，
-   立刻停手改代码。**「慢」和「跑不动」是两件事。**
+   判据：MCP 的临时工作目录（`<引擎仓库>/_render_tmp/manim_render_*/`）下**只有 `scene.py`、
+   `media/` 目录里零个文件 ⇒ 不是慢，是跑不动**（实测正常渲染会往
+   `media/videos/<模块>/<画质>/partial_movie_files/` 里持续写 `.mp4` 分段）。
+   目录建了但一个文件都没有 = 场景还没进渲染阶段。
+   **「慢」和「跑不动」是两件事。**
 5. **抽帧自检必做（步骤 3），且不过 MCP**：`preview_scene` / `render_gif` 在 MCP 进程内跑
    subprocess，遇到删除钩子问题会把 MCP 一起带崩。**「代码逻辑看着对」不等于「画面对」**——
    双层 `LaggedStart` 不同步、RGB 插值变灰、卡片文字堆原点三类问题代码都不报错。
 6. **排查代码错误绕过包装层**：MCP 与 `render_video.py` 的 `error_msg` 是**截断的 Rich 回溯尾部**，
    看不到真正报错行 ⇒ 绕过它们直跑 manim。**按阶段选工具**：构造/语法错误跑
-   `scripts/probe_charts.py`（dry_run **不渲染像素**，秒级）；渲染期问题（mobject 数量、
-   LaTeX、像素级）跑 `manim render -ql`。**按耗时判性质**：**4~10 s = 代码报错**（取完整 traceback）；
-   几十秒~几分钟 = 真在渲染。
+   `scripts/probe_charts.py`（dry_run **不渲染像素**，秒级，适用于任何路线的场景文件）；
+   渲染期问题（mobject 数量、LaTeX、像素级）跑 `manim render -ql`。
+   **判性质看「日志里有没有 Traceback」，不要看耗时**——本机实测两者区间重叠：
+   代码报错 1.9 s 退出，最简成功场景 2.5 s 完成，**耗时区分不出报错与成功**。
 7. **点云一律用单个 `PMobject` + `add_points()`，禁用逐点 `Dot3D`——不设规模例外**。
-   本机实测（1000 点）：构建 11.6 s vs 0.001 s（**约 1 万倍**）、出帧 31.1 s vs 0.008 s；
+   本机实测（1000 点）：构建 11.6 s vs 0.001 s（**约 1 万倍**）、出帧 31.1 s vs 0.008 s（约 3900 倍）；
    `Dot3D` 线性增长（11.6 ms/点），10 万点仅构建就需 ~19 min。它**磁盘上一个帧都没有**，
    易误判成「卡住」——这正是那次 20 万点空转的事故机制。数据见 `references/pitfalls.md`。
 8. **只出画面，不做配音、不做 TTS。** 默认 720p / 16:9 / 无字幕 / `khan_academy`（白底）。
    风格只改**背景色**，前景颜色必须在场景代码里写死（白底下 `MathTex` 默认白色会看不见）。
-9. **交付必须走完 §四 标准流程 全流程**，不得跳过自检直接说"做好了"。**必须用返回值的 `file_path`**，
-   别猜文件名（重名会带 `_1`/`_2` 后缀）。
+9. **交付必须走完所在路线的全流程**（视频见 §四 标准流程，图表见
+   `chart-generation.md` §一 标准流程，封面见 `wechat-cover.md` §三 渲染命令 → §七 自检清单），
+   不得跳过自检直接说"做好了"。**必须用返回值的 `file_path`**，别猜文件名
+   （重名会带 `_1`/`_2` 后缀）。
 10. **📏 体量红线：`SKILL.md` 与每篇 `references/*.md` 都 ≤10000 字符，超了必须拆分**——
     **不调阈值**。拆分依据是**共享性**：**公共部分**（所有路线/任务都要用）留本文件，
     **非公共部分**（只属于某条路线或某个场景）留在各自文档，本文件只留一行指针。
@@ -72,10 +80,17 @@ version: 1.7.0
 ## 三、成片渲染路径选择（仅用于步骤 4；预览见 §四 标准流程 步骤 2）
 
 预览→成片（720p30 vs 480p15）**本机实测倍率约 ×1.3～1.7**，排期按 **×3 上限**估。
-MCP `render_animation` 硬超时 **120 s** ⇒ 预估 < 110 s 调 MCP；**≥ 110 s 或区间跨过 110 s
+MCP `render_animation` 硬超时 **120 s** ⇒ 预估 < 110 s 才调 MCP；**≥ 110 s 或区间跨过 110 s
 直接用 `scripts/render_video.py`**（同一套注入与风格管线，超时放宽到 900 s）。
-**撞上"批量删除钩子"导致非零退出码时不要重跑**：直接去 `animation_output`
-按修改时间找新文件，有就按成功处理。
+MCP 工具调用**不支持后台参数**（硬约束 3 的 `run_in_background` 只对 Bash/PowerShell 有效），
+所以这一步只能靠预估分流，没有「后台兜底」这个选项。
+
+拿到非零退出码时**先分清两种情况再决定要不要重跑**：
+
+| 现象 | 含义 | 动作 |
+|---|---|---|
+| `Exit Code: 1` + 日志里 `Traceback` | 场景代码真的报错了 | 取完整 traceback 改代码 |
+| 非零退出码 + **日志里没有 Traceback** + `animation_output` 里有新文件 | 渲染完了，收尾清理撞上批量删除钩子 | **不要重跑**，按成功处理 |
 
 ## 四、标准流程（视频路线）
 
@@ -167,7 +182,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | `scripts/check_manim_version.py` | 开工前的版本守门 |
 | `scripts/render_video.py` | 渲染视频。撞 MCP 超时或自检时用 |
 | **`scripts/probe_charts.py`** | **图表/封面场景写完先跑它**（用法见硬约束 6）。不传类名则自动发现本文件所有场景 |
-| **`scripts/check_chart_layout.py`** | **批量图表版面自检**。像素级检测压标题/溢出，正常值 6~19% |
+| **`scripts/check_chart_layout.py`** | **批量图表版面自检**。像素级检测压标题/溢出，阈值见 `references/chart-generation.md` §四 |
 | **`scripts/charts_lib.py`** | **图表公共库**。`from charts_lib import *`，配色/坐标轴/卡片/图例/安全区全套 |
 | **`scripts/render_cover.py`** | **渲染封面 PNG**。自动处理 `--resolution` 逗号格式、缓存假成功、字体回退检查 |
 | `scripts/contact_sheet.py` | 视频抽帧拼图自检。**必须先跑它再看图**（静态 PNG 不需要） |

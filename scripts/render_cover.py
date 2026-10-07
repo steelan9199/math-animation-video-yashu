@@ -119,7 +119,8 @@ def main():
         if recent:
             print("[cover][FAIL] media_dir 里只有旧产物，本次没有重新渲染。")
             print("        原因：manim 对未改动的场景文件会命中哈希缓存并跳过渲染。")
-            print("        处理：改一下场景文件（加个空行也算），或删掉 media_dir 再跑。")
+            print("        处理：改一下场景文件（加个空行也算），或换一个 --media-dir 目录名。")
+            print("        不要删 media_dir——本机批量删除钩子会给非零退出码，还可能连带删掉别的产物。")
         else:
             print("[cover][FAIL] 没找到产物 PNG，检查 _cover_render.log")
         if errs:

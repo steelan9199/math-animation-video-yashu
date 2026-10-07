@@ -17,13 +17,13 @@ SKILL.md 里只留硬约束与速查指针；**排查具体问题时来这里查
 | 成片预估落在 MCP 的 120 s 硬限附近，赌一把就超时 | 本机预览→成片实测倍率约 ×1.3～1.7，排期按 **×3 上限**估。预估 < 110 s 才调 MCP；≥ 110 s 直接走`render_video.py`。区间跨阈值时按上限算，不要赌 |
 | 预览／渲染超时后原地重试，白等一轮 | 超时即换路径：预览超时走 `render_video.py --quality low`，成片超时走 `--quality medium` |
 | 渲染文件重名加 `_1` 后缀，误把预览片当成品交付 | 只用返回值里的 `file_path` |
-| **渲染「卡住」时靠 `sleep` / 轮询反复确认 → 27 分钟纯空转（最大一次浪费）** | 等 30 s 无产出就**看 `_render_tmp` 里有没有帧**：只有 `scene.py` ⇒ 不是慢、是跑不动，立刻改代码 |
-| **前台跑渲染，工具调用一结束就把 Manim 一起 SIGTERM 掉** | 一律 `run_in_background=true`；用 `TaskOutput` 等通知，不要 `sleep` |
+| **渲染「卡住」时靠 `sleep` / 轮询反复确认 → 27 分钟纯空转（最大一次浪费）** | 等 30 s 无产出就**查 MCP 临时目录有没有分帧文件**（见下节「30 秒取证法」）：只有 `scene.py`、`media/` 里零文件 ⇒ 不是慢、是跑不动，立刻改代码 |
+| **前台跑渲染，工具调用一结束就把 Manim 一起 SIGTERM 掉** | 一律 `run_in_background=true`；用 `TaskOutput` 等通知，不要 `sleep`。⚠️ **MCP 工具调用没有后台参数**，只能靠预估耗时分流 |
 | `_render_spawn.log` 里只有 `SPAWN` 没有 `DONE`，却以为只是慢 | 那一行就是「被中途杀掉」的铁证。**`SPAWN`/`DONE` 必须成对**，不成对就重跑 |
 | 抽帧取帧区间太短（`--duration` 小于 `--every` × 帧数）导致拼图 `FAILED` | `--duration` 至少 ≥ `--every × cols × rows`；不确定就用 `--auto`，或把 `--duration` 放宽到 ≥3 s |
 | 调试产物散落工作目录，交付时混入 `_*.png` / `_*.txt` / `_calib.py` | 中间件一律用 `_` 前缀并在交付前清理；只留成片 + 场景源码两件 |
 | MCP/降级脚本只回一段截断的 Rich 回溯，看不到真正报错行 | 脚本返回的 `error_msg` 是**尾部片段**。排查代码错误时**绕过它直接跑 manim**（见下节） |
-| **渲染 4~10 秒就退出 ⇒ 是代码报错，不是渲染慢** | 别进「等待重试」思维。直接取完整 traceback 定位，见下节 |
+| 非零退出码就断定「渲染失败」并重跑 | 先看日志有没有 `Traceback`：没有 Traceback 但 `animation_output` 里有新文件 = 收尾清理撞上删除钩子，**别重跑** |
 
 ---
 
@@ -45,34 +45,30 @@ cd <工作目录>
 
 两种方式都能拿到**完整 traceback**（含 `文件:行号 in construct` 和出错源码上下文）。
 
-**按耗时判性质，别一律当"卡住"**：
+### 判性质：看「日志有没有 Traceback」和「产物目录有没有文件」，不看耗时
 
-| 耗时 | 结论 | 下一步 |
+**耗时不是判据**——本机实测（Manim 0.21.0，480p）：代码报错 **1.9 s** 退出，
+最简成功场景 **2.5 s** 完成，**两个区间完全重叠**。任何「几秒内退出 = 报错」的规则都会误判。
+
+| 证据 | 结论 | 下一步 |
 |---|---|---|
-| **4~10 秒** | 场景代码抛异常，立刻退出 | 取完整 traceback 改代码 |
-| 几十秒~几分钟 | 真在渲染分帧 | `run_in_background` 等通知 |
-| 长时间无产出 | 疑似 3D 点云卡死 | 走 SKILL.md「30 秒判定法」 |
+| 日志含 `Traceback` / `Error` | 场景代码抛异常 | 取完整 traceback 改代码 |
+| 无 Traceback，临时目录 `media/` 里**零文件** | 场景卡在构造阶段（典型：点云规模选型错） | 停下改代码 |
+| 无 Traceback，`media/videos/<模块>/<画质>/partial_movie_files/` 里有 `.mp4` 分段且在增长 | 真在渲染 | `run_in_background` 等通知，别问 |
 
-**构造类错误的最快定位法：写探针脚本逐个试**。
-不要在场景文件里二分调试 —— 单独写个几十行的探针，把每种 mobject
-构造包在 `try/except` 里一次跑完，一眼看出是哪个写法有问题：
+**「慢」与「跑不动」的分辨**：渲染卡住时不要 sleep、不要轮询，直接查 MCP 临时工作目录
+`<引擎仓库>/_render_tmp/manim_render_*/`——里面只有 `scene.py`、`media/` 零文件 ⇒ 不是慢，
+是**跑不动**（正常渲染会往 `partial_movie_files/` 持续写 `.mp4` 分段，本机实测 6 秒时已写 225 个）。
+一行查法：
 
-```python
-tests = {}
-def chk(name, fn):
-    try:
-        fn(); tests[name] = "OK"
-    except Exception as e:
-        tests[name] = type(e).__name__ + ": " + str(e)[:90]
-
-chk("Line3D", lambda: Line([-1, 0.2, 0], [1, 0.2, 0]))
-chk("Line2D", lambda: Line([-1, 0.2], [1, 0.2]))          # ← 这个会炸
-chk("always_redraw", lambda: always_redraw(lambda: Rectangle()))
-for k, v in tests.items():
-    print(k, "->", v)
+```powershell
+Get-ChildItem "D:\github\math-animation-mcp\_render_tmp" -Directory |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 1 |
+  ForEach-Object { Get-ChildItem $_.FullName -Recurse -File | Measure-Object }
 ```
 
-探针脚本也用 `_` 前缀命名，交付前删掉。
+**探针脚本**：构造类错误不用自己手写——`scripts/probe_charts.py` 已经做了这件事
+（自动发现文件里所有场景类、逐个 `dry_run`、打印完整 traceback）。直接用它。
 
 ---
 
@@ -100,7 +96,7 @@ WARNING  Font <X> not in [...]   couldn't load font "<X> Not-Rotated 10",
 falling back to "Sans Not-Rotated 10", expect ugly output.
 ```
 
-**本机实测**（2026-10-07 复查安装用 `windows-font-finder-yashu`；Manim 认不认用 `Text` 探测）：
+**本机实测**（复查安装用 `windows-font-finder-yashu`；Manim 认不认用 `Text` 探测）：
 
 | 白名单字体 | 安装 | Manim 可用 |
 |---|---|---|
@@ -110,8 +106,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 > 两个 family 都在**用户目录**（`AppData\Local\Microsoft\Windows\Fonts`），
 > 不在 `C:\Windows\Fonts`。**只扫系统目录会全部漏掉**（本机实测漏过一次，误判「没装」）。
-> 查是否安装用 `windows-font-finder-yashu` 技能（它还列授权与商用风险），
-> 本技能只关心「Manim 能不能用这两个 family 名」。
+> 查是否安装用 `windows-font-finder-yashu` 技能（它还列授权与商用风险）。
 
 若只想确认「Manim 认不认白名单这两个」，让 Manim 自己报：
 
@@ -136,7 +131,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 | `DoubleArrow`/`Arrow` 两端点重合时长度为 0 报错 | 扫描参数的取值范围不要包含 0（如振幅最低取 0.4） |
 | `lambda` 里引用的变量在 `always_redraw`/`add_updater` 里没定义就被调用 | 先在 `construct` 里定义变量再创建 `always_redraw`，且把 `add_updater` 放在被引用对象之后 |
 | **写了 `self.time_since_start`，`Scene` 根本没这个属性** | 用 `self.time`（float，随 play 推进，已实测）或 `ValueTracker`。写「某 API 不存在」前先 `hasattr` 验一遍，结论见 `manim-api-troubleshooting.md` §3.2 `Scene` 的时间属性 |
-| **三个静默失败的构造写法**（`move_to([0,y,0])` 让卡片文字堆到原点 / `Line` 端点传二维 / `always_redraw` 回调带参） | 见下方「构造类三个硬性写法」，附可直接复制的正确写法 |
+| **三个静默失败的构造写法**（`move_to([0,y,0])` 让卡片文字堆到原点 / `Line` 端点传二维 / `always_redraw` 回调带参） | 见下方「构造类三个硬性写法」 |
 | **`VGroup` 没有 `.append()`，只有 `.add()`** | 收集 mobject 一律 `VGroup()` + `.add()`；`list` 才有 `.append()` |
 | **同一变量先当 `list` 后当 `VGroup` 用 → 渲染时才炸** | 声明时就定好类型。`cards = []` 后又想 `.arrange()` 会报 `'list' object has no attribute 'arrange'` |
 | **两个独立 `LaggedStart` 分别控制辉光层和亮线层，节奏对不上** | 轨迹会画成**虚线**。改为逐色带交错播放：同一色带的辉光与亮线放进同一个 `LaggedStart` |
@@ -151,18 +146,17 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 | 坑 | 正确做法 |
 |---|---|
 | **`from manim import *` 不导出某些大写颜色常量**（如 `CYAN`/`MAGENTA`） | 想要精确霓虹色一律自己定义十六进制常量，不要赌名字是否存在。完整实测清单见 `manim-api-troubleshooting.md` §3.1 `from manim import *` 到底导出了什么颜色常量 |
-| **以为「把物体摆到原点 + 设 zoom」就能居中** | 透视投影下包围盒中点 ≠ 画面中心。必须用 `cam.project_points()` 反算 zoom |
-| zoom 按**全角度最坏情况**拟合 | 主体偏小约 25%。改为按这一幕实际运镜区间 `[th0, th1]` 拟合 |
-| 形变动画只拟合了 3 个终态 | 形变中主体冲出画面。把 `lerp` 中点也塞进拟合列表 |
+| **以为「把物体摆到原点 + 设 zoom」就能居中** | 透视投影下包围盒中点 ≠ 画面中心。必须用 `cam.project_points()` 反算 zoom（实现见 `scene-template-3d.md` 3D-2 `fit_zoom`） |
+| zoom 按**全角度最坏情况**拟合 | 主体偏小约 25%。改为按这一幕实际运镜区间 `[th0, th1]` 拟合；形变还要把 `lerp` 中点塞进拟合列表 |
 | `np.linspace(0, n, k+1).astype(int)` 末位索引等于 `n` | 越界 `IndexError`。手动 `idx[-1] = n - 1` |
 | 3D 里的文字随相机倾斜变形/翻到背面 | 一律 `add_fixed_in_frame_mobjects()`，用完 `remove_fixed_in_frame_mobjects()` |
 | 同一时刻画面上有两行标题（新字幕 + 旧标题没删） | 先 `FadeOut` 旧标题，再 `FadeIn` 新字幕 |
 | 色带 updater 塞在 `VGroup` 里当子对象 | `clear_updaters()` / `self.remove()` 容易漏。**updater 对象一律放场景顶层** |
-| 不先验证居中算法就直接写正式场景 | 先渲染 20 秒标定场景：画面正中钉一个十字，看曲线是否稳稳穿过 |
+| 不先验证居中算法就直接写正式场景 | 先渲染 20 秒标定场景：画面正中钉一个十字，看曲线是否稳稳穿过（见 `scene-template-3d.md` 3D-10） |
 | **逐点建 `Dot3D` 渲染点云 → 启动阶段就卡死** | 改单个 `PMobject` + `add_points(P, rgbas=...)`。**不设规模例外**，见下方实测 |
 | **3D 场景里点云读起来像「实心块」** | 只保留「首次越界步数 ≥ `min_steps`」的贴表面点；否则外围一步就飞出去的点会把内部全遮住 |
 | **点云像一层均匀的雾，没有体积** | 上色乘一个整体明暗因子（按 `w` 或深度），让近处壳层更亮 |
-| **公式/读数与主体或标题带打架** | 3D 主体先按 `cap_frac` 压到画面中下部，把**上 1/4 留作公式带、下边缘留作字幕带**；公式固定在 `FORM_Y≈1.7`，不要放画面正中 |
+| **公式/读数与主体或标题带打架** | 3D 主体先按 `cap_frac` 压到画面中下部，把**上方留作公式/字幕带**；字幕用 `add_fixed_in_frame_mobjects` 钉在 `SUB_Y`（`UP * SUB_Y`），公式固定在 `FORM_Y≈1.7`，**都不要放画面正中** |
 | **同一参数扫描，不同取值的形态几乎一样（观众看不出差别）** | 检查配色是否**已饱和**：若各取值都被映到最亮端，视觉自然无差。改为按**各自形态范围**归一化配色，并配一个实时读数（`p = N`）强化差异 |
 | **参数扫描时主体冲出画面** | 每个取值**各自拟合 zoom**（不同参数的点云半径可能相差 60%+），而不是全程沿用同一个 zoom |
 
@@ -185,13 +179,8 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 写"> 1 万点才用 `PMobject`"会暗示小规模可以用 `Dot3D`，那是错的。
 
 > 口径提醒：**构建倍率**约 1 万倍（11.6 s vs 0.001 s），**出帧倍率**约 3900 倍（31.1 s vs 0.008 s）。
-> 两个数指的是不同阶段，别混着引。
->
-> 实测只做到 2000 点就停：斜率已经完全线性，2 万/10 万纯属浪费机时。
-> 这也复演了一遍事故机制——`Dot3D` 的**磁盘上一个帧都没有**，看着像"慢"，
-> 实则根本没开始渲染。测大点数时务必给每个 case 设硬超时，别硬等。
-
----
+> 两个数指的是不同阶段，别混着引。实测只做到 2000 点就停（斜率已经完全线性，再往上纯属浪费机时）。
+> 这也复演了一遍事故机制——`Dot3D` 的**磁盘上一个帧都没有**，看着像"慢"，实则根本没开始渲染。
 
 ## 构造类三个硬性写法（二维/三维通用）
 
@@ -229,22 +218,16 @@ Manim 内部只按 `func()` 调用。不要照抄网上 `add_updater(lambda m: .
 **3. 卡片内文字必须换算成场景坐标**
 
 ```python
-def fill_card(c, items):
-    """往已定位的卡片里塞文字。items = [(文本, 字号, 颜色, 相对中心纵向偏移), ...]"""
-    cx, cy, _ = c.get_center()
-    for txt, size, color, dy in items:
-        c.add(Text(txt, font=FONT, font_size=size, color=color)
-              .move_to([cx, cy + dy, 0]))
-    return c
+# ❌ 所有卡片文字堆到画面原点叠成一团，代码不报任何错
+c.add(Text(txt, font=FONT).move_to([0, 0.5, 0]))
 
-card_obj = card(3.0, 2.0).move_to([-3.5, 0.5, 0])      # 先定位
-fill_card(card_obj, [("标题", 24, INK, 0.5),
-                     ("W0", 30, BLUE, -0.1)])# dy 相对卡片中心
+# ✅ 按卡片实际中心换算（可复制实现见 scene-template.md 的 fill_card）
+cx, cy, _ = c.get_center()
+c.add(Text(txt, font=FONT).move_to([cx, cy + dy, 0]))
 ```
 
-**为什么这条最危险**：写成 `c.add(Text(...).move_to([0, 0.5, 0]))` 时
-**代码不报任何错**，渲染也成功，只是所有卡片文字都跑到画面原点叠成一团。
+**为什么这条最危险**：错写法**代码不报任何错**，渲染也成功，只是画面糊成一团。
 
-同理，`VGroup.arrange()` 会移动整个组，**加在组内的子 mobject 若是用
-`[0, y, 0]` 定位的就会错位**。要跟着动就必须在 `arrange` 之后按最终
-`get_center()` 重算，或直接用 `next_to()` / `relative_to()` 这类相对方法。
+同理，`VGroup.arrange()` 会移动整个组，**组内若有用 `[0, y, 0]` 绝对坐标定位的子 mobject
+就会错位**——所以必须**先 `fill_card()` 再 `arrange()`**；要在 arrange 之后填字，
+就按最终 `get_center()` 重算，或直接用 `next_to()` / `relative_to()` 这类相对方法。

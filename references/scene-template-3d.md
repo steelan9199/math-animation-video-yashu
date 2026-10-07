@@ -29,7 +29,7 @@ FONT      = "Noto Sans SC"
 
 FOCAL = 30.0   # 焦距越大越接近正交投影；透视感太强时调大
 FILL  = 0.86   # 主体宽度占画面宽度的比例上限（fit_zoom 用）
-SUB_Y = 3.15   # 固定字幕基线的 Y（top_text 用；别低于 -3.4，否则贴边）
+SUB_Y = 3.15   # 固定字幕基线的 Y（top_text 用，**画面上方**；别低于 -3.4，否则贴底边）
 
 
 class My3DScene(ThreeDScene):
@@ -145,11 +145,13 @@ def top_text(self, text, color=C_WHT, size=30):
     return t
 ```
 
-用完记得 `remove_fixed_in_frame_mobjects()`，否则该mobject 会永远被钉在画面里。
+用完记得 `remove_fixed_in_frame_mobjects()`，否则该 mobject 会永远被钉在画面里。
 
-- 字幕放**画面中下方居中**，字号 ≤ 28；横排太长会贴到右边缘被裁掉。
-- 上下都留白：主体半高上限设成 2.6 左右，字幕基线在 ±3.4。
-- 同一时刻画面上只留一行字。新标题要先`FadeOut` 旧标题再 `FadeIn` 新字幕，
+- `top_text` 把字幕放在 **`SUB_Y`（画面上方，`UP * SUB_Y`）**——上方留公式带、
+  下方留给主体，**不要**再往下挪到「中下方」，那会与主体/公式带打架。
+- 字号 ≤ 28；横排太长会贴到右边缘被裁掉。
+- 上下都留白：主体半高上限（`fit_zoom` 的 `half_h_cap`）设成 2.6 左右。
+- 同一时刻画面上只留一行字。新标题要先 `FadeOut` 旧标题再 `FadeIn` 新字幕，
   否则两行字会叠在一起（本次踩过）。
 
 ## 3D-5 色带渐变 + 双层辉光
@@ -315,5 +317,6 @@ self.add_fixed_in_frame_mobjects(cross)
 - 每帧的 `always_redraw` / `add_updater` 对象控制在 2～3 个。
 - 需要 updater 的色带**放在场景顶层**（不要塞进 `VGroup` 里当子对象），
   否则 `self.remove(g)` 和 `clear_updaters()` 容易漏。
-- 实测 32.6 s / 720p / 30fps 的 3D 场景，480p 预览 ~25 s，成片 ~41 s（**倍率约 ×1.6**）。
+- 实测 32.6 s / 720p / 30fps 的 3D 场景，480p 预览 ~25 s，成片 ~41 s（**倍率约 ×1.6**，
+  落在 `SKILL.md` §三 的 ×1.3～1.7 区间内）。
 
