@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 用 math-animation 连接器(MCP)把数学/物理/论文知识点与题目渲染成教学动画视频（MP4、无配音），并能用同一套manim 管线生成微信公众号封面图与各类数据/结构图表（柱状图、折线图、饼图、流程图、思维导图、鱼骨图、甘特图、桑基图、热力图、雷达图、组织架构图等，清单见 references/chart-generation.md）。激活条件：用户消息含以下关键词之一：`生成数学动画`、`数学动画视频`、`把 XX 做成动画视频`、`做数学讲解动画`、`真 3D 立体动画`、`排查 Manim 报错`、`论文动画`、`公式可视化`、`动画讲解`、`可视化这个原理`、`manim`、`公众号封面`、`公众号配图`、`做封面`、`文章头图`、`封面图`、`画图表`、`做图表`、`生成图表`、`数据可视化`。
-version: 1.6.0
+version: 1.7.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -10,7 +10,7 @@ version: 1.6.0
 
 | 用户要什么 | 走哪条 | **开工必读** |
 |---|---|---|
-| 教学动画视频（MP4） | 主线流程（见 §四） | `references/scene-template.md` |
+| 教学动画视频（MP4） | 主线流程（见 §四 标准流程） | `references/scene-template.md` |
 | 公众号封面 / 文章头图（PNG）——含公式、图表、几何结构，以及纯文字排版 / 金句卡 / 要点卡 | 封面路线 | `references/wechat-cover.md` |
 | 数据图表 / 结构图 | 图表路线 | `references/chart-generation.md` |
 
@@ -31,7 +31,7 @@ version: 1.6.0
    漏掉 ` GB` 会静默回退；粗体用 `weight="BOLD"`。详见 `references/pitfalls.md`。
 2. **🔒 版本锁定 Manim Community Edition 0.21.0**，勿升级、勿混用 3b1b 版。开工前跑
    `scripts/check_manim_version.py`（校验版本号 + API 锚点）。**退出码非 0 就停下**，
-   按脚本提示先修 `references/manim-api-troubleshooting.md` §3 的结论。
+   按脚本提示先修 `references/manim-api-troubleshooting.md` §三 实战校验记录 的结论。
 3. **渲染一律 `run_in_background` + `dangerouslyDisableSandbox`**。工具调用一返回/超时，
    它派生的子进程会被一起 SIGTERM 杀掉 ⇒ 表现为 `Exit Code: 1 / SIGTERM` 而日志空。
    **这不是渲染失败，是调用先结束把 Manim 带走了。** 后台启动 → `TaskOutput` 阻塞等待
@@ -53,21 +53,23 @@ version: 1.6.0
    易误判成「卡住」——这正是那次 20 万点空转的事故机制。数据见 `references/pitfalls.md`。
 8. **只出画面，不做配音、不做 TTS。** 默认 720p / 16:9 / 无字幕 / `khan_academy`（白底）。
    风格只改**背景色**，前景颜色必须在场景代码里写死（白底下 `MathTex` 默认白色会看不见）。
-9. **交付必须走完 §四 全流程**，不得跳过自检直接说"做好了"。**必须用返回值的 `file_path`**，
+9. **交付必须走完 §四 标准流程 全流程**，不得跳过自检直接说"做好了"。**必须用返回值的 `file_path`**，
    别猜文件名（重名会带 `_1`/`_2` 后缀）。
 10. **📏 体量红线：`SKILL.md` 与每篇 `references/*.md` 都 ≤10000 字符，超了必须拆分**——
     **不调阈值**。拆分依据是**共享性**：**公共部分**（所有路线/任务都要用）留本文件，
     **非公共部分**（只属于某条路线或某个场景）留在各自文档，本文件只留一行指针。
-    **唯一例外**：非公共但**漏读即静默返工**的内容（如 §五 的 3D 专属要求）可留常驻层。
-    新增内容先判断它是否公共、漏读是否会返工。完整判据见维护文档 §九。
+   **唯一例外**：非公共但**漏读即静默返工**的内容（如 §五 真 3D场景 的专属要求）可留常驻层。
+   新增内容先判断它是否公共、漏读是否会返工。完整判据见维护文档 §九 体量红线。
 11. **本技能是活文档——只留正确的知识**：进文档须过五道门槛（G0~G4），证伪的删干净。
-    **G0 硬证据 = 本次会话亲自跑过并看到输出**（定义与删错门槛见维护文档 §11.1 / §三）。
+    **G0 硬证据 = 本次会话亲自跑过并看到输出**（定义见 `mcp-repo-rules.md` §一 取证门槛，
+    删错门槛见维护文档 §三 删错门槛）。
 12. **🔧 取证充分就直接改，不必请示**——卡住自进化的请示成本比改错更高。只有不可逆或会削弱
     安全网的动作才先问（删脚本 / 删 git tag / 改推送目标 / 绕门禁 / 改接口签名 / 换 remote /
     升级依赖）。判断口径：**能不能靠 git 回滚 + 门禁能不能拦住**。能 ⇒ 直接改。
-    完整授权分级表（含 MCP 仓库）见维护文档 §四与 `mcp-repo-rules.md`。
+    完整授权分级表见维护文档 §四 授权分级；改 MCP 侧仓库时的细化分级见
+    `mcp-repo-rules.md` §二 可直接改 vs 必须报备。
 
-## 三、成片渲染路径选择（仅用于步骤 4；预览见 §四 步骤 2）
+## 三、成片渲染路径选择（仅用于步骤 4；预览见 §四 标准流程 步骤 2）
 
 预览→成片（720p30 vs 480p15）**本机实测倍率约 ×1.3～1.7**，排期按 **×3 上限**估。
 MCP `render_animation` 硬超时 **120 s** ⇒ 预估 < 110 s 调 MCP；**≥ 110 s 或区间跨过 110 s
@@ -91,7 +93,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 & $P "<技能目录>\scripts\render_video.py" <scene.py> `
   --quality low --style khan_academy --timeout 900
 ```
-加 `run_in_background=true` + `dangerouslyDisableSandbox=true`。**3D 场景须先做完 §五 的标定场景**。
+加 `run_in_background=true` + `dangerouslyDisableSandbox=true`。**3D 场景须先做完 §五 真 3D场景 的标定要求**。
 
 ### 步骤 3：抽帧自检（必做）
 ```powershell
@@ -104,7 +106,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 每幕都有真实运动、渐变形变中颜色没掉进灰色。有问题 → 改代码 → 重跑步骤 2、3。
 
 ### 步骤 4：720p 出片
-按 §三 选路径。MCP 参数 `code`/`quality="medium"`/`format="mp4"`/`style`；
+按 §三 成片渲染路径选择 选路径。MCP 参数 `code`/`quality="medium"`/`format="mp4"`/`style`；
 降级脚本 `render_video.py <scene.py> --quality medium --style khan_academy`。
 
 ### 步骤 5：复检与交付
@@ -130,7 +132,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | MCP 服务名 | `math-animation` |
 | 渲染引擎 Python | `D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe` |
 | 引擎仓库 / 输出目录 | `D:\github\math-animation-mcp` / `animation_output`（**固定不可改**） |
-| 默认中文字体 | 白名单里的楷体（启动器注入为 `Text`/`MarkupText`）；封面固定用黑体 |
+| 默认中文字体 | `render_video.py` 启动器注入楷体（覆盖 `Text`/`MarkupText` 默认）；场景内显式写了 `FONT=` 的以场景为准。**封面固定用黑体**，见 `references/wechat-cover.md` §二 字体授权 |
 | ffmpeg / ffprobe | `D:\software\ffmpeg\ffmpeg-2024-09-26-git-f43916e217-full_build\bin\` |
 | LaTeX | MiKTeX：`D:\software\MiKTeX\miktex\bin\x64\`（`MathTex` 可用） |
 | Manim 依赖（版本权威） | `D:\software\uv\envs\py314-cpu\Lib\site-packages\manim` |
@@ -147,7 +149,8 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | **`references/mcp-repo-rules.md`** | 改 MCP 仓库（`D:\github\math-animation-mcp`）时。取证门槛 / 授权分级 / 回归自检 / 双边记账 |
 | **`references/pitfalls.md`** | **排查具体问题时**。通用坑全集 + 排查流程 + 探针脚本 + 字体详解 ⚠️ |
 | **`references/scene-template.md`** | 写**二维**场景代码时。最小可靠模板 + 配色常量 + 卡片布局 + 参数扫描 + 小结卡 |
-| **`references/scene-template-3d.md`** | 写**真 3D**（`ThreeDScene`）场景时。3D-1~3D-10：反算 zoom、运镜、字幕、色带、HSV 配色、形变、白闪、标定场景 ⚠️ || **`references/chart-generation.md`** | **要任何图表/信息图时必读**。标准流程 + 三层安全区 + `charts_lib` + 各类图表实现要点（清单见其 §六） |
+| **`references/scene-template-3d.md`** | 写**真 3D**（`ThreeDScene`）场景时。3D-1~3D-10：反算 zoom、运镜、字幕、色带、HSV 配色、形变、白闪、标定场景 ⚠️ |
+| **`references/chart-generation.md`** | **要任何图表/信息图时必读**。标准流程 + 三层安全区 + `charts_lib` + 各类图表实现要点（清单见其 §六 各类图表的关键实现要点） |
 | **`references/chart-pitfalls.md`** | 图表路线踩过的坑（坑 1~15）。排查时按需查 |
 | **`references/wechat-cover.md`** | **要封面/头图时必读**。尺寸规格、渲染命令、防裁切、封面专属坑、自检清单 |
 | **`references/wechat-cover-layouts.md`** | 两套封面版式的可复制代码：左文右图 / 单卡居中（金句卡、要点卡） |

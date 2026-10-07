@@ -22,8 +22,8 @@
 ## 一、为什么要写这份文件
 
 Manim 的 API 迭代很快，而本机**锁定 0.21.0**。凭记忆写代码是本技能最大的风险来源——
-真实交付里最贵的两类失败都是 API 层面的：**用了不存在的常量名**（§3.1）与
-**写了不存在的属性**（§3.2），两者都是 `NameError` / `AttributeError`，
+真实交付里最贵的两类失败都是 API 层面的：**用了不存在的常量名**（§3.1 颜色常量清单）与
+**写了不存在的属性**（§3.2 `Scene` 的时间属性），两者都是 `NameError` / `AttributeError`，
 代码逻辑看着完全正确，渲染启动才炸。
 
 这份文件的作用是：**把「猜 API」变成「查 API」，并给出查的顺序。**
@@ -80,7 +80,8 @@ Read(file_path="D:\software\uv\envs\py314-cpu\Lib\site-packages\manim\scene\thre
 
 ### 3.1 `from manim import *` 到底导出了什么颜色常量
 
-**实测结论**：`manim` 命名空间共有 **158个大写常量**，其中：
+**实测结论**：`manim` 顶层命名空间有 150+ 个大写常量（`check_manim_version.py` 守的是**量级** `>=150`，
+不是某个具体数字——常量总数会随版本增删漂移，守死数字只会制造假告警），其中：
 
 | 存在 | 不存在 |
 |---|---|
@@ -171,11 +172,12 @@ points[:, 1] *= factor * zoom
 
 ## 四、相关文件
 
-- `SKILL.md` 硬约束 2—— 版本与锚点守门（速查版）
-- `scripts/check_manim_version.py` —— **版本 + 13 项 API锚点校验**，锚点漂移即退出码 1
+- `SKILL.md` 硬约束 2 —— 版本与锚点守门（速查版）
+- `scripts/check_manim_version.py` —— **版本 + API 锚点校验**，锚点漂移即退出码 1
 - `references/scene-template.md` —— **二维**模板（最小可靠模板、卡片布局、参数扫描）
 - `references/scene-template-3d.md` —— **真 3D 场景模板**（3D-1~3D-10，含 `fit_zoom` 反算实现）
-- `references/pitfalls.md` —— 已知坑全集（配色 / 动画机制 / 三维场景）
-- `references/chart-generation.md` —— 图表路线的坑与`charts_lib.py` 公共库
-- `references/wechat-cover.md` —— 公众号封面路线（尺寸、版式、字体授权）
-- `references/incidents/mandelbulb-postmortem.md` —— 27 分钟空转事故复盘
+- `references/pitfalls.md` —— 通用坑全集（配色 / 字体 / 动画机制 / 三维 / 构造类写法）
+- `references/chart-generation.md` —— 图表路线的**做法与清单** + `charts_lib.py` 公共库
+- `references/chart-pitfalls.md` —— 图表路线的**坑**
+- `references/wechat-cover.md` / `wechat-cover-layouts.md` —— 公众号封面路线（尺寸、版式、字体授权）
+- `references/incidents/mandelbulb-postmortem.md` —— 空转事故复盘

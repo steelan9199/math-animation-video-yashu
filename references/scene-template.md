@@ -89,14 +89,20 @@ INK = "#21242C"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"
 # ⚠️ family 名必须精确匹配（含尾部 GB），写错会静默回退到 Sans —— 渲染日志搜"falling back"必查。
 FONT = "Noto Sans SC"
 
-# fill_card() 的实现见 references/pitfalls.md「构造类三个硬性写法」第 3 条
-# （为什么不能手填 move_to([0, y, 0])），此处只给用法。
-
 
 def card(w, h, fill="#F4F6FB", stroke=GRIDC, radius=0.18):
     r = RoundedRectangle(width=w, height=h, corner_radius=radius)
     r.set_fill(fill, opacity=1.0).set_stroke(stroke, width=1.4)
     return r
+
+
+def fill_card(c, items):
+    """往已定位的卡片里塞文字。items = [(文本, 字号, 颜色, 相对卡片中心的纵向偏移), ...]"""
+    cx, cy, _ = c.get_center()
+    for txt, size, color, dy in items:
+        c.add(Text(txt, font=FONT, font_size=size, color=color)
+              .move_to([cx, cy + dy, 0]))
+    return c
 
 
 # 用法：先定位 → 再填字 → 最后整体 arrange
@@ -112,8 +118,9 @@ plus = Text("+", font=FONT, font_size=34, color=GRAY).move_to([-1.75, 0.55, 0])
 row = VGroup(a, plus, b).arrange(RIGHT, buff=0.42)
 ```
 
-注意 `VGroup.arrange()` 会移动整个组：**填字必须在 arrange 之前**，
-否则组内绝对坐标会错位。要在 arrange 之后填，就按最终 `get_center()` 重算。
+⚠️ **必须先 `fill_card()` 再 `arrange()`**：`arrange()` 会移动整个组，
+组内按绝对坐标 `[cx, cy+dy, 0]` 摆的字会跟着错位。要在 arrange 之后填字，
+就按最终 `get_center()` 重算，或改用 `next_to()` / `relative_to()` 相对方法。
 
 ### 参数扫描 + 实时读数
 

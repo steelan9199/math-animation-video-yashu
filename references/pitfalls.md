@@ -124,7 +124,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 **选哪种**：讲论文/学术内容优先 `Noto Sans SC`（黑体，正式排版），
 讲基础数学/给中学生看用 `LXGW WenKai GB`（楷体，教材手写感）。
-**封面一律用黑体**，理由与授权结论见 `wechat-cover.md` §二。
+**封面一律用黑体**，理由与授权结论见 `wechat-cover.md` §二 字体授权。
 
 ---
 
@@ -135,7 +135,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 | `always_redraw` 的对象用 `FadeOut` 淡出无效（每帧被重绘覆盖） | 用 `self.remove(obj)` 直接移除；换曲线时 `self.remove(old); self.add(new)`，同参数值下可无缝切换 |
 | `DoubleArrow`/`Arrow` 两端点重合时长度为 0 报错 | 扫描参数的取值范围不要包含 0（如振幅最低取 0.4） |
 | `lambda` 里引用的变量在 `always_redraw`/`add_updater` 里没定义就被调用 | 先在 `construct` 里定义变量再创建 `always_redraw`，且把 `add_updater` 放在被引用对象之后 |
-| **写了 `self.time_since_start`，`Scene` 根本没这个属性** | 用 `self.time`（float，随 play 推进，已实测）或 `ValueTracker`。写「某 API 不存在」前先 `hasattr` 验一遍，结论见 `manim-api-troubleshooting.md` §3.2 |
+| **写了 `self.time_since_start`，`Scene` 根本没这个属性** | 用 `self.time`（float，随 play 推进，已实测）或 `ValueTracker`。写「某 API 不存在」前先 `hasattr` 验一遍，结论见 `manim-api-troubleshooting.md` §3.2 `Scene` 的时间属性 |
 | **三个静默失败的构造写法**（`move_to([0,y,0])` 让卡片文字堆到原点 / `Line` 端点传二维 / `always_redraw` 回调带参） | 见下方「构造类三个硬性写法」，附可直接复制的正确写法 |
 | **`VGroup` 没有 `.append()`，只有 `.add()`** | 收集 mobject 一律 `VGroup()` + `.add()`；`list` 才有 `.append()` |
 | **同一变量先当 `list` 后当 `VGroup` 用 → 渲染时才炸** | 声明时就定好类型。`cards = []` 后又想 `.arrange()` 会报 `'list' object has no attribute 'arrange'` |
@@ -150,7 +150,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 | 坑 | 正确做法 |
 |---|---|
-| **`from manim import *` 不导出某些大写颜色常量**（如 `CYAN`/`MAGENTA`） | 想要精确霓虹色一律自己定义十六进制常量，不要赌名字是否存在。完整实测清单见 `manim-api-troubleshooting.md` §3.1 |
+| **`from manim import *` 不导出某些大写颜色常量**（如 `CYAN`/`MAGENTA`） | 想要精确霓虹色一律自己定义十六进制常量，不要赌名字是否存在。完整实测清单见 `manim-api-troubleshooting.md` §3.1 `from manim import *` 到底导出了什么颜色常量 |
 | **以为「把物体摆到原点 + 设 zoom」就能居中** | 透视投影下包围盒中点 ≠ 画面中心。必须用 `cam.project_points()` 反算 zoom |
 | zoom 按**全角度最坏情况**拟合 | 主体偏小约 25%。改为按这一幕实际运镜区间 `[th0, th1]` 拟合 |
 | 形变动画只拟合了 3 个终态 | 形变中主体冲出画面。把 `lerp` 中点也塞进拟合列表 |

@@ -5,7 +5,7 @@
 > 尺寸、渲染命令、防裁切、坑与自检清单在主篇
 > `references/wechat-cover.md`，**先读主篇再来挑版式**。
 
-## 六、封面版式模板（左文右图，最稳）
+## 版式一：左文右图（最稳）
 
 已交付并验证的版式：左侧标题区 + 右侧 2~3 张图卡。
 
@@ -14,7 +14,7 @@ from manim import *
 
 INK = "#21242C"; BLUE = "#1865F2"; TEAL = "#14BF96"; ORAN = "#FF914D"
 AXC = "#98A2B3"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"; BG = "#FFFFFF"
-FONT = "Noto Sans SC"          # 封面固定用黑体系；白名单里的楷体小尺寸发虚，封面别用（见§二）
+FONT = "Noto Sans SC"          # 封面固定用黑体系；白名单里的楷体小尺寸发虚，封面别用（见 wechat-cover.md §二 字体授权）
 
 config.frame_width = 14.222
 config.frame_height = 14.222 * 766 / 1800
@@ -149,7 +149,7 @@ class MyCover(Scene):            # 类名必须 ASCII
 `DashedLine` 均值参考线、`MathTex` 公式、`Dot` 端点高亮。图卡标签统一放在卡片底部
 `CY - 1.22` 左右，字号 23、灰色 `GRAY`。
 
-### 6.2 纯文字 / 金句卡 / 要点卡（单卡居中版式）
+## 版式二：纯文字 / 金句卡 / 要点卡（单卡居中）
 
 没有公式图表时不要硬塞图卡，改用**单卡居中**：大字主标 + 副标 + 细分割线 + 底部落款。
 **关键：用 `next_to` 按实际边界排版，不要手填 `move_to` 坐标**——手填坐标换文案必重叠。
@@ -159,7 +159,7 @@ from manim import *
 
 INK = "#21242C"; BLUE = "#1865F2"; AXC = "#98A2B3"; GRIDC = "#E4E7EE"
 GRAY = "#6B7280"; BG = "#FFFFFF"
-FONT = "Noto Sans SC"          # 封面固定用黑体系；白名单里的楷体小尺寸发虚，封面别用（见§二）
+FONT = "Noto Sans SC"          # 封面固定用黑体系；白名单里的楷体小尺寸发虚，封面别用（见 wechat-cover.md §二 字体授权）
 
 config.frame_width = 14.222
 config.frame_height = 14.222 * 766 / 1800     # = 6.052，严格锁 2.35:1

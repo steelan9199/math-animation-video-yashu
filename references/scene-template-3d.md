@@ -277,7 +277,7 @@ head.add_updater(follow); halo.add_updater(follow)
 ⚠️ **不要用 `self.time_since_start`**——`Scene` 没有这个属性，写了必崩（已实测 `AttributeError`）。
 两种正确写法（`ValueTracker` 优先 / 读 `self.time` 做连续运动）、
 以及「写『某 API 不存在』前必须先 `hasattr` 验一遍」这条纪律，见
-`references/manim-api-troubleshooting.md` §3.2。
+`references/manim-api-troubleshooting.md` §3.2 `Scene` 的时间属性。
 
 ## 3D-9 收尾：白闪穿越
 
@@ -310,7 +310,7 @@ self.add_fixed_in_frame_mobjects(cross)
 
 ## 3D 性能参考（Manim 0.21，本机）
 
-单次操作耗时实测表见 `references/manim-api-troubleshooting.md` §3.5。
+单次操作耗时实测表见 `references/manim-api-troubleshooting.md` §3.5 性能实测。
 
 - 每帧的 `always_redraw` / `add_updater` 对象控制在 2～3 个。
 - 需要 updater 的色带**放在场景顶层**（不要塞进 `VGroup` 里当子对象），
