@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 用 math-animation 连接器(MCP)把数学/物理/论文知识点与题目渲染成教学动画视频（MP4、无配音），并能用同一套manim 管线生成微信公众号封面图与各类数据/结构图表（柱状图、折线图、饼图、流程图、思维导图、鱼骨图、甘特图、桑基图、热力图、雷达图、组织架构图等，清单见 references/chart-generation.md）。激活条件：用户消息含以下关键词之一：`生成数学动画`、`数学动画视频`、`把 XX 做成动画视频`、`做数学讲解动画`、`真 3D 立体动画`、`排查 Manim 报错`、`论文动画`、`公式可视化`、`动画讲解`、`可视化这个原理`、`manim`、`公众号封面`、`公众号配图`、`做封面`、`文章头图`、`封面图`、`画图表`、`做图表`、`生成图表`、`数据可视化`。
-version: 1.2.2
+version: 1.3.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -21,12 +21,12 @@ version: 1.2.2
 ## 二、不可违反的硬约束
 
 1. **🔒 字体白名单（全库唯一两个字体名）**：**只允许 `Noto Sans SC` 与 `LXGW WenKai GB`**（后者**带 GB**）。
-   这两个名字之外的一切字体名——不论是否可商用、是否已安装、是否只是反例——**一律不得出现在本技能任何文件里**
+   这两个名字之外的一切字体名——不论是否可商用、是否已安装、**是否只是反例**——**一律不得出现在本技能任何文件里**
    （`font=`、正文、表格、注释都算，门禁自动拦）。需要英文数字**照样写 `Noto Sans SC`**。
    漏掉 ` GB` 会静默回退；粗体用 `weight="BOLD"`。详见 `references/pitfalls.md`。
 2. **🔒 版本锁定 Manim Community Edition 0.21.0**，勿升级、勿混用 3b1b 版。开工前跑
-   `scripts/check_manim_version.py`（校验版本号 + 13 项 API 锚点）。**退出码非 0 就停下**，
-   按脚本提示先修`references/manim-api-troubleshooting.md` §3 的结论，别带着失效的 API 写法开工。
+   `scripts/check_manim_version.py`（校验版本号 + API 锚点）。**退出码非 0 就停下**，
+   按脚本提示先修 `references/manim-api-troubleshooting.md` §3 的结论。
 3. **渲染一律 `run_in_background` + `dangerouslyDisableSandbox`**。工具调用一返回/超时，
    它派生的子进程会被一起 SIGTERM 杀掉 ⇒ 表现为 `Exit Code: 1 / SIGTERM` 而日志空。
    **这不是渲染失败，是调用先结束把 Manim 带走了。** 后台启动 → `TaskOutput` 阻塞等待
@@ -40,12 +40,12 @@ version: 1.2.2
 6. **排查代码错误绕过包装层**：MCP 与 `render_video.py` 的 `error_msg` 是**截断的 Rich 回溯尾部**，
    看不到真正报错行 ⇒ 绕过它们直跑 manim。**按阶段选工具**：构造/语法错误跑
    `scripts/probe_charts.py`（dry_run **不渲染像素**，秒级）；渲染期问题（mobject 数量、
-   LaTeX、像素级）跑 `manim render -ql`。**按耗时判性质**：4~10 s = 代码报错；
+   LaTeX、像素级）跑 `manim render -ql`。**按耗时判性质**：**4~10 s = 代码报错**（取完整 traceback）；
    几十秒~几分钟 = 真在渲染。
 7. **点云一律用单个 `PMobject` + `add_points()`，禁用逐点 `Dot3D`——不设规模例外**。
-   本机实测：1000 点时 `Dot3D` 构建 11.6 s，而 `PMobject` 恒定 0.008 s（**差约 1 万倍**），
-   且 `Dot3D` 约 11.6 ms/点、线性增长。`Dot3D` 的**磁盘上一个帧都没有**，易误判成「卡住」
-   ——这正是那次 20 万点空转的事故机制。完整数据见 `references/pitfalls.md`。
+   本机实测（1000 点）：构建 11.6 s vs 0.001 s（**约 1 万倍**）、出帧 31.1 s vs 0.008 s；
+   `Dot3D` 线性增长（11.6 ms/点），10 万点仅构建就需 ~19 min。它**磁盘上一个帧都没有**，
+   易误判成「卡住」——这正是那次 20 万点空转的事故机制。数据见 `references/pitfalls.md`。
 8. **只出画面，不做配音、不做 TTS。** 默认 720p / 16:9 / 无字幕 / `khan_academy`（白底）。
    风格只改**背景色**，前景颜色必须在场景代码里写死（白底下 `MathTex` 默认白色会看不见）。
 9. **交付必须走完 §四 全流程**，不得跳过自检直接说"做好了"。**必须用返回值的 `file_path`**，
@@ -58,10 +58,11 @@ version: 1.2.2
 
 ## 三、成片渲染路径选择（仅用于步骤 4；预览见 §四 步骤 2）
 
-预估渲染耗时 ≈ **预览耗时 × 3～5**（720p30 相对 480p15），MCP `render_animation` 硬超时 **120 s**。
-预估 < 110 s → 调 MCP；**≥ 110 s 或区间跨过 110 s → 直接用 `scripts/render_video.py`**
-（同一套注入与风格管线，超时放宽到 900 s）。**撞上"批量删除钩子"导致非零退出码时不要重跑**：
-直接去 `animation_output` 按修改时间找新文件，有就按成功处理。
+预览→成片（720p30 vs 480p15）**本机实测倍率约 ×1.3～1.7**，排期按 **×3 上限**估。
+MCP `render_animation` 硬超时 **120 s** ⇒ 预估 < 110 s 调 MCP；**≥ 110 s 或区间跨过 110 s
+直接用 `scripts/render_video.py`**（同一套注入与风格管线，超时放宽到 900 s）。
+**撞上"批量删除钩子"导致非零退出码时不要重跑**：直接去 `animation_output`
+按修改时间找新文件，有就按成功处理。
 
 ## 四、标准流程（视频路线）
 
@@ -100,11 +101,12 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 对成片再跑一次 `contact_sheet.py --auto`（真实时长与预览不同，逐帧位置会变），结尾同样单独复检；
 `ffprobe` 核对分辨率/帧率/时长；复制到工作目录起中文名（如
 `正弦函数的图像变换_可汗学院风_720p.mp4`）；`present_files` 交付（**mp4 第一、场景源码 .py 第二**）；
-回复里说清时长、分辨率、每一幕讲了什么，以及**没配音**这一事实。## 五、真 3D 场景（用户要「立体、相机环绕」时）
+回复里说清时长、分辨率、每一幕讲了什么，以及**没配音**这一事实。
+
+## 五、真 3D 场景（用户要「立体、相机环绕」时）
 
 **不要用二维模板硬凑。** 完整可复制代码见 `references/scene-template.md` 的「三维场景模板」
-（3D-1~3D-10：`fit_zoom` 反算、运镜、色带辉光、HSV 配色、形变、光点、白闪、标定场景）。
-六条硬性要求，违反任一 = 返工；每条的论证与可复制实现都在该文档：
+（3D-1~3D-10）。六条硬性要求，违反任一 = 返工；论证与可复制实现都在该文档：
 
 1. **先渲染标定场景**（20 秒廉价渲染）—— 透视投影下「包围盒中点」≠ 画面中心。
 2. **zoom 用 `cam.project_points()` 反算**，按这一幕实际走到的机位给区间（按全角度最坏情况
@@ -113,7 +115,7 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 4. **文字一律 `add_fixed_in_frame_mobjects()`**，用完 `remove_fixed_in_frame_mobjects()`。
 5. **运镜直接改 `cam.phi_tracker` / `theta_tracker` / `zoom_tracker`**；俯角主动设计（如 `phi=68°`）。
 6. **配色渐变必须转色相（HSV），不要 RGB 线性插值**——RGB 中途必然掉进灰（实测彩度最低
-   0.083，肉眼一条灰带），转色相后全程 ≥0.82。模板有现成的 `band_color(frac, g)`。
+   0.083），转色相后全程 ≥0.82。模板有现成的 `band_color(frac, g)`。
 
 ## 六、本机固定事实（不要重新探测，除非报错）
 
@@ -131,19 +133,20 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 `three_blue_one_brown` 深灰`#1C1C1C`（科普/大学）、`textbook` 浅灰`#F5F5F5`（教材）、
 `playful` 暖黄`#FFF8E1`（小学低龄）、`dark_tech` 纯黑`#000000`（竞赛/CS/真 3D）、
 `blackboard` 深绿`#2D5016`（模拟课堂）。
+
 ## 七、文档路由（按需读，别通读；⚠️ 标记的先 Grep 局部读）
 
-**文档**
+| 文件 | 什么时候读 |
+|---|---|
+| **`references/自进化与维护.md`** | **改本技能前必读**。收录判据 / 硬证据定义 / 删错门槛 / 授权分级 / 版本号 / push-tag-回滚 / 体量红线 |
+| **`references/pitfalls.md`** | **排查具体问题时**。已知坑全集 + 排查流程 + 探针脚本 + 字体详解 |
+| **`references/scene-template.md`** | 写场景代码时。2D 最小模板 + 配色常量 + 卡片布局 + **真 3D 模板（3D-1~3D-10）** ⚠️ |
+| **`references/chart-generation.md`** | **要任何图表/信息图时必读**。实战坑 + 三层安全区 + 各类图表实现要点（清单见其§七） |
+| **`references/wechat-cover.md`** | **要封面/头图时必读**。尺寸规格、渲染命令、防裁切、版式模板、封面专属坑、自检清单 ⚠️ |
+| **`references/manim-api-troubleshooting.md`** | **写拿不准的 API 之前**。30 秒自查法 + 本机源码位置 + 0.21.0 实测结论。**不要凭记忆写 Manim API** |
+| **`references/incidents/mandelbulb-postmortem.md`** | 点云/分形场景前，或怀疑自己会"卡住干等"时。27 分钟空转事故链 |
 
-| 文件 | 什么时候读 | 体量 |
-|---|---|---|
-| **`references/自进化与维护.md`** | **改本技能前必读**。收录判据 / 硬证据定义 / 删错门槛 / 授权分级 / 版本号 / push-tag-回滚 | 8.6k |
-| **`references/pitfalls.md`** | **排查具体问题时**。已知坑全集 + 排查流程 + 探针脚本 + 字体详解 | 9.4k |
-| **`references/scene-template.md`** | 写场景代码时。2D 最小模板 + 配色常量 + 卡片布局 + **真 3D 模板（3D-1~3D-10）** | 15k ⚠️ |
-| **`references/chart-generation.md`** | **要任何图表/信息图时必读**。实战坑 + 三层安全区 + 各类图表实现要点（清单见其§七） | 10k |
-| **`references/wechat-cover.md`** | **要封面/头图时必读**。尺寸规格、渲染命令、防裁切、版式模板、封面专属坑、自检清单 | 13k ⚠️ |
-| **`references/manim-api-troubleshooting.md`** | **写拿不准的 API 之前**。30 秒自查法 + 本机源码位置 + 0.21.0 实测结论。**不要凭记忆写 Manim API** | 5.3k |
-| **`references/incidents/mandelbulb-postmortem.md`** | 点云/分形场景前，或怀疑自己会"卡住干等"时。27 分钟空转事故链 | 4.6k |
+> 体量与「是否标 ⚠️」由 `node scripts/skill_audit.js --top` 现算，**文档里不写死数字**。
 
 **脚本**
 

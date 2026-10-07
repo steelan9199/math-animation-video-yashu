@@ -14,7 +14,7 @@ SKILL.md 里只留硬约束与速查指针；**排查具体问题时来这里查
 | 自检阶段走 MCP（`preview_scene`）可能把 MCP 进程一起带崩 | 自检一律直接跑 `scripts/render_video.py` + `scripts/contact_sheet.py`，不过 MCP |
 | 抽帧只看前 N 秒，漏掉闪白/收尾卡片 | 结尾段落必须用 `contact_sheet.py --start <秒>` 单独抽一张 |
 | `contact_sheet.py` 拼图没覆盖全片却看不出来 | 用 `--auto` 让它自动算 `every`；认输出里的 `⚠️ 未覆盖全片` 告警 |
-| 场景 35 s，成片预估 105～175 s（预览 × 3～5），可能撞上 MCP 的 120 s 硬限 | 预估 < 110 s 才调 MCP；≥ 110 s 直接走`render_video.py`。区间跨阈值时不要赌，按上限算 |
+| 成片预估落在 MCP 的 120 s 硬限附近，赌一把就超时 | 本机预览→成片实测倍率约 ×1.3～1.7，排期按 **×3 上限**估。预估 < 110 s 才调 MCP；≥ 110 s 直接走`render_video.py`。区间跨阈值时按上限算，不要赌 |
 | 预览／渲染超时后原地重试，白等一轮 | 超时即换路径：预览超时走 `render_video.py --quality low`，成片超时走 `--quality medium` |
 | 渲染文件重名加 `_1` 后缀，误把预览片当成品交付 | 只用返回值里的 `file_path` |
 | **渲染「卡住」时靠 `sleep` / 轮询反复确认 → 27 分钟纯空转（最大一次浪费）** | 等 30 s 无产出就**看 `_render_tmp` 里有没有帧**：只有 `scene.py` ⇒ 不是慢、是跑不动，立刻改代码 |
@@ -23,7 +23,7 @@ SKILL.md 里只留硬约束与速查指针；**排查具体问题时来这里查
 | 抽帧取帧区间太短（`--duration` 小于 `--every` × 帧数）导致拼图 `FAILED` | `--duration` 至少 ≥ `--every × cols × rows`；不确定就用 `--auto`，或把 `--duration` 放宽到 ≥3 s |
 | 调试产物散落工作目录，交付时混入 `_*.png` / `_*.txt` / `_calib.py` | 中间件一律用 `_` 前缀并在交付前清理；只留成片 + 场景源码两件 |
 | MCP/降级脚本只回一段截断的 Rich 回溯，看不到真正报错行 | 脚本返回的 `error_msg` 是**尾部片段**。排查代码错误时**绕过它直接跑 manim**（见下节） |
-| **渲染 4~8 秒就退出 ⇒ 是代码报错，不是渲染慢** | 别进「等待重试」思维。直接取完整 traceback 定位，见下节 |
+| **渲染 4~10 秒就退出 ⇒ 是代码报错，不是渲染慢** | 别进「等待重试」思维。直接取完整 traceback 定位，见下节 |
 
 ---
 
@@ -91,15 +91,14 @@ for k, v in tests.items():
 ### 字体名必须精确匹配（含 GB 后缀）
 
 Manim 只认注册名，**不匹配就静默回退到系统默认无衬线字体，只打一条 WARNING**
-（WARNING 走 logger，不落 stdout/stderr —— 想自动判定必须捕获 logging，不是 `sys.stderr`）：
+（WARNING 走 logger，不落 stdout/stderr —— 想自动判定必须捕获 logging，不是 `sys.stderr`）。
+日志形态如下（`<X>` 代表一个**拼错的 family 名**，本技能规定不把非白名单字体名写进任何文件，
+所以这里用占位符代替真实名字）：
 
 ```
-WARNING  Font LXGW WenKai not in [...]   couldn't load font "LXGW WenKai Not-Rotated 10",
+WARNING  Font <X> not in [...]   couldn't load font "<X> Not-Rotated 10",
 falling back to "Sans Not-Rotated 10", expect ugly output.
 ```
-
-> 上例中的 `LXGW WenKai` 是**漏写 ` GB` 的错误写法演示**，不是可用字体名。
-> 白名单只有 `LXGW WenKai GB` 与 `Noto Sans SC` 两个。
 
 **本机实测**（2026-10-07 复查安装用 `windows-font-finder-yashu`；Manim 认不认用 `Text` 探测）：
 
@@ -107,7 +106,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 |---|---|---|
 | `Noto Sans SC` | ✅ 用户级 | ✅ 无 WARNING |
 | `LXGW WenKai GB` | ✅ 用户级 | ✅ 无 WARNING |
-| `LXGW WenKai`（漏 GB，白名单外的错误写法） | — | ❌ 回退 + WARNING |
+| 上述楷体名**去掉尾部 ` GB` 后缀** | — | ❌ 回退 + WARNING |
 
 > 两个 family 都在**用户目录**（`C:\Users\Administrator\AppData\Local\Microsoft\Windows\Fonts`），
 > 不在 `C:\Windows\Fonts`。**只扫系统目录会全部漏掉**（本机实测漏过一次，误判「没装」）。
@@ -131,9 +130,9 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 **顺带一条**：Manim 的 WARNING 里会列出**本机全部可用 family 名**，
 排查时直接看这段列表最快，不用另跑命令。
 
-**选哪种**：`LXGW WenKai GB` 楷体，教材/手写感；`Noto Sans SC` 黑体，
-更贴近论文图表的正式排版。**讲论文/学术内容优先 `Noto Sans SC`**，
-讲基础数学/给中学生看用 `LXGW WenKai GB`。两者都是 SIL OFL 1.1，可商用。
+**选哪种**：讲论文/学术内容优先 `Noto Sans SC`（黑体，正式排版），
+讲基础数学/给中学生看用 `LXGW WenKai GB`（楷体，教材手写感）。
+**封面一律用黑体**，理由与授权结论见 `wechat-cover.md` §二。
 
 ---
 
@@ -159,7 +158,7 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 | 坑 | 正确做法 |
 |---|---|
-| **`from manim import *` 不导出 `CYAN`/`MAGENTA` 等大写颜色常量** | 0.21.0 实测：158 个大写常量里**没有** `CYAN`/`MAGENTA`，但**有** `TEAL`/`PINK`/`GOLD`/`PURPLE`。精确霓虹色一律自己定义十六进制常量 |
+| **`from manim import *` 不导出某些大写颜色常量**（如 `CYAN`/`MAGENTA`） | 想要精确霓虹色一律自己定义十六进制常量，不要赌名字是否存在。完整实测清单见 `manim-api-troubleshooting.md` §3.1 |
 | **以为「把物体摆到原点 + 设 zoom」就能居中** | 透视投影下包围盒中点 ≠ 画面中心。必须用 `cam.project_points()` 反算 zoom |
 | zoom 按**全角度最坏情况**拟合 | 主体偏小约 25%。改为按这一幕实际运镜区间 `[th0, th1]` 拟合 |
 | 形变动画只拟合了 3 个终态 | 形变中主体冲出画面。把 `lerp` 中点也塞进拟合列表 |
@@ -186,13 +185,16 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 两条规律：
 
-- **`Dot3D` 线性增长**：约 **11.6 ms/点**（1000→2000 点，耗时正好翻倍）。
+- **`Dot3D` 线性增长**：约 **11.6 ms/点**（1000→2000 点，构建耗时正好翻倍）。
   据此外推：2 万点 ≈ 构建 3.9 min，10 万点 ≈ 构建 19 min。
-- **`PMobject` 与点数无关**，恒定 0.008 s——加点是塞数组，不是造对象。
+- **`PMobject` 与点数无关**：构建恒定 ~0.001 s、出帧恒定 ~0.008 s——加点是塞数组，不是造对象。
 
 **结论：不存在交叉点，所以不设阈值。** 1000 点这种"小规模"场景 `Dot3D` 都已经慢到不可接受，
 写"> 1 万点才用 `PMobject`"会暗示小规模可以用 `Dot3D`，那是错的。
 
+> 口径提醒：**构建倍率**约 1 万倍（11.6 s vs 0.001 s），**出帧倍率**约 3900 倍（31.1 s vs 0.008 s）。
+> 两个数指的是不同阶段，别混着引。
+>
 > 实测只做到 2000 点就停：斜率已经完全线性，2 万/10 万纯属浪费机时。
 > 这也复演了一遍事故机制——`Dot3D` 的**磁盘上一个帧都没有**，看着像"慢"，
 > 实则根本没开始渲染。测大点数时务必给每个 case 设硬超时，别硬等。

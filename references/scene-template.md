@@ -85,9 +85,7 @@ class MyScene(Scene):          # 类名必须 ASCII，渲染器靠它取场景�
 ```python
 INK = "#21242C"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"
 # 中文字体：讲论文/学术内容用 Noto Sans SC（黑体，正式）；讲基础数学用 LXGW WenKai GB（楷体，教材感）。
-# ⚠️ family 名必须精确匹配，漏后缀会静默回退到 Sans。渲染日志里搜 "falling back" 必查。
-# ⚠️ 这两个都是**用户级字体**（AppData\Local\Microsoft\Windows\Fonts），
-#    不在 C:\Windows\Fonts —— 用 windows-font-finder-yashu 技能查，别只扫系统目录。
+# ⚠️ family 名必须精确匹配（含尾部 GB），写错会静默回退到 Sans —— 渲染日志搜"falling back"必查。
 FONT = "Noto Sans SC"
 
 # fill_card() 的实现见 references/pitfalls.md「构造类三个硬性写法」第 3 条
@@ -495,5 +493,5 @@ self.add_fixed_in_frame_mobjects(cross)
 - 每帧的 `always_redraw` / `add_updater` 对象控制在 2～3 个。
 - 需要 updater 的色带**放在场景顶层**（不要塞进 `VGroup` 里当子对象），
   否则 `self.remove(g)` 和 `clear_updaters()` 容易漏。
-- 实测 32.6 s / 720p / 30fps 的 3D 场景，480p 预览 ~25 s，成片 ~41 s。
+- 实测 32.6 s / 720p / 30fps 的 3D 场景，480p 预览 ~25 s，成片 ~41 s（**倍率约 ×1.6**）。
 

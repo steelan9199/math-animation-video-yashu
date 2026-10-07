@@ -29,7 +29,8 @@ const SKILL_DIR = path.resolve(__dirname, "..");
 // ── 红线（与《自进化与维护.md》§九 必须同步改）────────────────────────
 // 首次标定 = 3300 tok。常驻层现有内容已全部是 T1 级（漏读即白跑/返工/破坏合规），
 // 且已做过一轮瘦身（6273 → 3216 tok，降 49%），再砍就要赶走事故级内容了。
-// 余量刻意留得小（约 2.6%）：够插一行指针，不够塞一段新规则 ⇒ 逼着新内容下沉 references。
+// 余量刻意留得小：够插一行指针，不够塞一段新规则 ⇒ 逼着新内容下沉 references。
+// 当前实测值不写进注释，跑本脚本现看（注释里的数字必然过期）。
 const BUDGET = {
   skillTok: 3300, // 常驻层 SKILL.md（每轮对话重发，杠杆最大）
   skillChars: 10000, // 常驻层 SKILL.md 字符数上限（与 tok 线并存，任一超线即红）
@@ -132,9 +133,11 @@ function checkNegative(docs) {
 // 白名单外的字体名**在任何位置都不许出现**，包括正文、表格、注释、反例。
 // 因此不设行级豁免：想提别的字体就不写，想教人别写就不举那个名字。
 const FONT_RE = /(?:font|set_font\(\s*font)\s*[=:]\s*["']([^"']+)["']/gi;
-// 反查用：扫描全文任意位置的疑似字体名（限含空格的 family 形态，避免误伤普通英文词）
+// 反查用：扫描全文任意位置的疑似字体名（限「已知前缀 + 含空格的 family」形态，避免误伤普通英文词）。
+// ⚠️ 前缀表必须覆盖白名单两个字体的**首词**，否则「白名单内字体名写错后缀」这类反例
+//    （如楷体名漏掉尾部 GB）会绕过闸 3 —— 本技能自己就犯过这个错。
 const FONT_NAME_SCAN =
-  /\b(?:Noto|Source Han|Alibaba|PuHui|YaHei|PingFang|SimHei|SimSun|Helvetica|Arial|Times)\s+[A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z0-9]+)?/g;
+  /\b(?:Noto|LXGW|Source Han|Alibaba|PuHui|YaHei|PingFang|SimHei|SimSun|Helvetica|Arial|Times)\s+[A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z0-9]+)?/g;
 
 function checkFonts(docs) {
   const bad = [];

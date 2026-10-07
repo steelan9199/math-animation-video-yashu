@@ -162,7 +162,7 @@ alive &= ~newly                  # 逃逸后冻结，防 inf/NaN 污染
 ## 4. 流程改进（下次直接照做）
 
 1. **写点云类 3D 场景前**，先确认图元：**点云一律用 `PMobject`**，不设规模例外。
-   实测 1000 点时 `Dot3D` 就已慢 3900 倍（11.6 s vs 0.008 s），见 `pitfalls.md`。
+   实测 1000 点时 `Dot3D` 构建就已慢约 1 万倍（11.6 s vs 0.001 s），见 `pitfalls.md`。
 2. **启动渲染前**，先标定：`n=112` 网格约 2 s，全片 720p 约 50 s —— 超出这个量级就怀疑选型。
 3. **渲染一律后台**：`run_in_background=true` + `dangerouslyDisableSandbox=true`，用 `TaskOutput` 等。
 4. **卡住 30 秒先取证**：查 `_render_tmp` 有没有帧、`_render_spawn.log` 的 `SPAWN`/`DONE` 是否成对。
