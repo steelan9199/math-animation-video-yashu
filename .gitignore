@@ -12,3 +12,6 @@ _backup/
 _render_tmp/
 _probe/
 out/
+_cover_media/
+_layout_media/
+_media/

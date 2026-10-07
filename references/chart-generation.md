@@ -75,20 +75,17 @@ AnnularSector(start_angle=0, angle=np.radians(90))   # ✅
 已实测：`AnnularSector.__init__(inner_radius, outer_radius, angle=π/2, start_angle=0, ...)`，
 `Arc`、`ArcBetweenPoints` 同样。
 
-### 坑 2｜类名是 `AnnularSector`（**双 r**），且**顶层不导出**
+### 坑 2｜类名是 `AnnularSector`（**双 r**）
 
 ```python
 from manim import *
-AnnularSector(...)          # ❌ NameError
+AnnularSector(...)# ✅ 0.21.0 顶层导出，from manim import * 直接可用
 ```
 
-0.21 的 `from manim import *` **不导出**它，必须显式：
-
-```python
-from manim.mobject.geometry.arc import AnnularSector
-```
-
-写错成 `AnnulusSector`（单 r）报 `ImportError: cannot import name ... Did you mean: 'AnnularSector'?`。
+写错成 `AnnulusSector`（单 r）报
+`ImportError: cannot import name ... Did you mean: 'AnnularSector'?`。
+（实测 0.21.0：`manim.AnnularSector` 与 `manim.mobject.geometry.arc.AnnularSector`
+是同一个类对象，显式从子模块 import 也可行但没必要。）
 
 ### 坑 3｜`move_to(a, b, c)` 三个位置参数会崩
 
@@ -271,113 +268,30 @@ manifest 格式：
 
 **位置**：`<技能目录>/scripts/charts_lib.py`。把它复制到场景文件同目录，然后
 `from charts_lib import *`，配色/画布/坐标轴/卡片/安全区全都现成。
+**库本体是唯一权威版本，本文档不复刻它的源码**——要看实现直接打开脚本。
 
-提供：配色常量、`std_axes`、`bars_on_axis`、`add_x_ticks`/`add_y_ticks`、
-`title_bar`、`legend`、`box_text`、`diamond`、`card`、`pill`、`note`、
-`arrow`、`at`/`put`、`safe_board`。
+| 分组 | 成员 |
+|---|---|
+| 画布与配色 | `config.frame_width/height`（16:9）、`INK`/`BLUE`/`TEAL`/`ORAN`/`RED`/`PURPLE`/`GRAY`/`AXC`/`GRIDC`/`BG`、`FONT`、`PALETTE` |
+| 定位 | `at(x, y)`（二维坐标转三维，坑 3/4 的解药）、`put` |
+| 坐标轴 | `std_axes(x_range, y_range, x_len, y_len, x_step, y_step, y_fmt, c2p_shift)`（返回 `(grid, ax)`，刻度数字默认隐藏）、`add_x_ticks` / `add_y_ticks`、`dashed_guide(ax, y)`、`vline(ax, x)` |
+| 数据图元 | `bars_on_axis(ax, values, labels, colors, x_offset, width, highlight, hi_color)`（柱底钉轴，坑 7 的解药） |
+| 文字与容器 | `box_text`（文字+卡片一体，文字按卡片中心算）、`card`、`diamond`、`pill`、`note`、`legend(items, marker="dot"/"square"/"line")` |
+| 结构 | `arrow(p0, p1)`（端点二维三维都吃，函数内补齐）、`title_bar(main, sub, tag)`（先 arrange 再贴左上角，坑 9 的解药） |
+| 收尾 | `SAFE`（安全区常量）、`safe_board(board, move_to, scale)`（超界自动缩放 + 定位，坑 10 的解药） |
 
-核心零件（本次全部实测过）：
+常用片段：
 
 ```python
 config.frame_width, config.frame_height = 14.222, 8.0
-INK, BLUE, TEAL, ORAN, RED, PURPLE = "#21242C", "#1865F2", "#14BF96", "#FF914D", "#D92916", "#7C4DFF"
-GRAY, GRIDC, AXC, BG = "#6B7280", "#E4E7EE", "#98A2B3", "#FFFFFF"
-FONT = "Noto Sans SC"     # SIL OFL 1.1，可商用。禁用微软雅黑
-PALETTE = [BLUE, TEAL, ORAN, PURPLE, RED, PINK, GOLD]
 
+ax_range = [0, 12, 1]
+grid, ax = std_axes(ax_range, [0, 100, 20])
+bars = bars_on_axis(ax, [32, 58, 41], ["一月", "二月", "三月"])
 
-def at(x, y):
-    return np.array([x, y, 0.0])       # 坑 3/4 的解药
-
-
-def card(w, h, fill="#F7F9FD", stroke=GRIDC, radius=0.18, sw=1.4):
-    r = RoundedRectangle(width=w, height=h, corner_radius=radius)
-    r.set_fill(fill, opacity=1.0).set_stroke(stroke, width=sw)
-    return r
-
-
-def box_text(txt, size=22, color=INK, fill="#F7F9FD", stroke=GRIDC,
-             w=None, h=None, pad=(0.34, 0.22), radius=0.14):
-    t = Text(txt, font=FONT, font_size=size, color=color)
-    c = RoundedRectangle(
-        width=w if w else t.width + pad[0],
-        height=h if h else t.height + pad[1],
-        corner_radius=radius)
-    c.set_fill(fill, opacity=1.0).set_stroke(stroke, width=1.6)
-    return VGroup(c, t.move_to(c.get_center()))   # 坑：文字必须按卡片中心算，不能 move_to([0,dy,0])
-
-
-def diamond(txt, size=20, color=INK, fill="#FFF7ED", stroke=ORAN, w=2.0, h=1.1):
-    t = Text(txt, font=FONT, font_size=size, color=color)
-    d = Polygon([-w/2,0,0], [0,h/2,0], [w/2,0,0], [0,-h/2,0])
-    d.set_fill(fill, opacity=1.0).set_stroke(stroke, width=1.8)
-    t.scale(0.62)                     # 文字缩小才放得进菱形
-    return VGroup(d, t.move_to(d.get_center()))
-
-
-def std_axes(x_range, y_range, x_len=8.6, y_len=4.3, c2p_shift=(0, 0, 0)):
-    """标准坐标轴：浅网格 + 深轴线 + 隐藏数字（刻度自行加）。shift 必须三维。"""
-    grid = NumberPlane(x_range=x_range, y_range=y_range,
-                       x_length=x_len, y_length=y_len,
-                       background_line_style={"stroke_color": GRIDC, "stroke_width": 1},
-                       axis_config={"stroke_opacity": 0})
-    ax = Axes(x_range=x_range, y_range=y_range,
-              x_length=x_len, y_length=y_len,
-              axis_config={"color": AXC, "stroke_width": 2.4,
-                           "include_tip": True, "include_numbers": False})
-    g = VGroup(grid, ax).shift(np.array(c2p_shift, dtype=float))
-    return g[0], g[1]
-
-
-def bars_on_axis(ax, values, labels, colors=None, x_offset=0.0, width=0.52,
-                 highlight=None, hi_color=ORAN):
-    """柱状图专用：底边钉轴、顶端按 c2p 求高（坑 7 的解药）。"""
-    base = ax.c2p(0, 0)[1]
-    gs = []
-    for i, v in enumerate(values):
-        y = ax.c2p(0, v)[1]
-        c = (colors[i] if isinstance(colors, (list, tuple)) else colors) if colors else BLUE
-        if highlight is not None and i == highlight:
-            c = hi_color
-        b = Rectangle(width=width, height=abs(y - base), stroke_width=0)
-        b.set_fill(c, opacity=1.0)
-        b.move_to(at(ax.c2p(i + x_offset, 0)[0], base + (y - base) / 2))
-        gs.append(VGroup(b, Text(str(v), font=FONT, font_size=21,
-                                 color=INK).next_to(b, UP, buff=0.11)))
-        nm = Text(labels[i], font=FONT, font_size=19, color=GRAY)
-        nm.next_to(ax.c2p(i + x_offset, 0), DOWN, buff=0.18)
-        gs.append(nm)
-    return VGroup(*gs)
-
-
-def title_bar(main, sub=None, tag=None):
-    """标签 + 主标题 + 副标题。先 arrange 再整体贴左上角（坑 9 的解药）。"""
-    gs = []
-    if tag:
-        gs.append(pill(tag, 20, BG, BLUE))
-    gs.append(Text(main, font=FONT, font_size=40, color=INK))
-    if sub:
-        gs.append(Text(sub, font=FONT, font_size=21, color=GRAY))
-    g = VGroup(*gs).arrange(DOWN, buff=0.18, aligned_edge=LEFT)
-    g.to_corner(UL, buff=0.34)
-    return g
-
-
-SAFE = {"x_min": -6.95, "x_max": 6.95, "y_min": -3.72, "y_max": 3.90}
-
-
-def safe_board(board, move_to=None, scale=True):
-    """所有图表收尾必过：超界自动缩放 + 定位（坑 10 的解药）。"""
-    if scale:
-        w = SAFE["x_max"] - SAFE["x_min"]
-        h = SAFE["y_max"] - SAFE["y_min"]
-        if board.width > w:
-            board.scale_to_fit_width(w)
-        if board.height > h:
-            board.scale_to_fit_height(h)
-    if move_to is not None:
-        board.move_to(at(*move_to))
-    return board
+content = VGroup(bars)
+safe_board(content, move_to=(-0.35, -0.25))
+self.add(title_bar("主标题", "副标题", "标签"), content)
 ```
 
 ---
@@ -388,7 +302,7 @@ def safe_board(board, move_to=None, scale=True):
 |---|---|---|
 | **柱状图** | `bars_on_axis()` | 坑 7（底边浮空） |
 | **折线图** | `VMobject(stroke_width=w).set_points_smoothly(np.array([c2p(t,y) for ...]))` | `x_range` 必须带步长 |
-| **环形/饼图** | `AnnularSector(inner_radius=..., outer_radius=..., start_angle=radians(a0), angle=radians(a1-a0))`，逐段累加角度 | **坑 1 弧度**、**坑 2 类名双 r 且不导出** |
+| **环形/饼图** | `AnnularSector(inner_radius=..., outer_radius=..., start_angle=radians(a0), angle=radians(a1-a0))`，逐段累加角度 | **坑 1 弧度**、**坑 2 类名双 r** |
 | **散点/气泡** | `Dot(c2p(x,y), radius=映射第三变量)` + `VMobject` 趋势线 | 半径映射要注意视觉放大 |
 | **热力图** | `Rectangle` 网格 + `interpolate_color(ManimColor(c1), ManimColor(c2), t)`；数值色深自适应黑白字 | 坑 12（行标签压块） |
 | **雷达图** | `Polygon(*[pt(i, v) for i,v in enumerate(vals)])` + `set_fill(c, opacity).set_stroke` | 多边形顶点顺序要跟角度一致 |
@@ -396,6 +310,7 @@ def safe_board(board, move_to=None, scale=True):
 | **面积图** | `ax.get_area(curve, x_range=(0,12), bounded_graph=下界曲线)` | **坑 5（只能 2 元组）** |
 | **直方图** | `np.histogram` 分箱 + `Rectangle` + 密度曲线叠加 | 箱宽换算 `c2p(0.4,0)-c2p(0,0)` |
 | **箱线图** | `Rectangle`(Q1–Q3) + `Line`(须) + 红线(中位) + `Dot`(离群) | 须线端点写法 |
+| **帕累托图** | `bars_on_axis` 画降序柱 + 累计百分比折线（右轴 0~100%） | 柱子要按值降序排；两个 y 轴刻度单位不同，别共用 `add_y_ticks` |
 | **仪表盘** | `AnnularSector` 半环分段 + `Line` 指针（长度 < 内半径） | 指针长度超内环会穿出去 |
 | **流程图** | `box_text` + `diamond` + `arrow()`，分支标"是/否" | 箭头端点必须三维 |
 | **思维导图** | `dirv = [cos a, sin a, 0]`，节点 = 中心 + dirv×半径，`CurvedArrow` 连线 | 叶子卡片要放在节点**外侧**并留足距离 |
@@ -420,16 +335,17 @@ def safe_board(board, move_to=None, scale=True):
 
 ---
 
-## 九、实战记录（2026-10-07）
+## 九、参考成品与性能基线
 
-一次做完 **24 类图表**（12 统计 + 10 结构关系 + 2 项目管理），1920×1080 全 16:9。
+已交付 **24 类图表**（12 统计 + 10 结构关系 + 2 项目管理），1920×1080 全 16:9，
+成品在 `D:\software\workBuddyWorkspace\manim_charts\`
+（含 `charts_lib.py` + 场景文件 + `README.md`）。**要加新类型就照第七节要点表加一个场景类。**
 
-- 探针拦截 **6 个真 bug**（弧度制、类名双 r、move_to 多参数、shift 二维、
-  get_area 三元组、numpy 比较），全部秒级定位到行
-- 版面自检拦截 **5 处压标题/溢出**，靠人眼很难稳定发现
-- 单张渲染 3~6 s，**24 张全渲 35 秒**
-- 最终 24/24 探针通过、24/24 版面通过
+耗时基线（用于按 §一 步骤 4 估时）：
 
-参考成品：`D:\software\workBuddyWorkspace\manim_charts\`
-（含 `charts_lib.py` 完整公共库 + 4 个场景文件 + `README.md`）。
-需要新类型时，照第七节的要点表加一个场景类即可。
+| 项 | 实测 |
+|---|---|
+| 单张 PNG 渲染 | 3~6 s |
+| 24 张全渲 | 35 s |
+| 探针（dry_run，不渲染像素） | 秒级 |
+| 版面自检 | 4 s/张 |

@@ -77,8 +77,10 @@ class MyScene(Scene):          # 类名必须 ASCII，渲染器靠它取场景�
 
 ### 卡片式布局（流程图 / 对比图最好用）
 
-⚠️ **本节两个坑都是 2026-10-07 做 DivLM 论文动画时实际踩到的**，
-症状是代码不报错、渲染成功，但画面全错。改完一定抽帧看图。
+⚠️ 卡片内文字用 `fill_card()` 换算成场景坐标，别手填 `move_to([0, y, 0])`。
+`Line`/`Arrow` 端点必须三维、`always_redraw` 回调必须零参数、
+`VGroup` 只有 `.add()` 没有 `.append()`——这四个坑的完整解释见
+`references/pitfalls.md`「构造类三个硬性写法」。
 
 ```python
 INK = "#21242C"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"
@@ -119,36 +121,8 @@ plus = Text("+", font=FONT, font_size=34, color=GRAY).move_to([-1.75, 0.55, 0])
 row = VGroup(a, plus, b).arrange(RIGHT, buff=0.42)
 ```
 
-**坑 1｜`move_to([0, y, 0])` 不是"卡片内偏移"，是场景坐标**
-写 `c.add(Text("标题", ...).move_to([0, 0.5, 0]))` 会让所有卡片文字
-都跑到**画面原点**叠成一团。必须先取 `c.get_center()` 换算。
-`VGroup.arrange()` 之后组内绝对坐标会错位，所以**填字要在 arrange 之前，
-或 arrange 之后按最终 `get_center()` 重算**。
-
-**坑 2｜`Line` / `Arrow` 端点必须三维**
-
-```python
-Line([-1, 0.2, 0], [1, 0.2, 0])# ✅
-Arrow([-3.4, 1.0, 0], [-2.28, 1.2, 0])               # ✅
-Line([-1, 0.2], [1, 0.2])                            # ❌ ValueError (1,2)→(1,3)
-```
-
-**坑 3｜`always_redraw` 的回调零参数**
-
-```python
-def build_bars():                # ✅
-    ...
-bars = always_redraw(build_bars)
-
-def build_bars(m):               # ❌ TypeError: missing 1 required positional arg
-```
-
-**坑 4｜容器类型先定好**
-
-```python
-cards = VGroup(); cards.add(c)        # ✅ VGroup 只有 add()
-cards = []; cards.append(c)           # ✅ list 只有 append()，但不能 .arrange()
-```
+注意 `VGroup.arrange()` 会移动整个组：**填字必须在 arrange 之前**，
+否则组内绝对坐标会错位。要在 arrange 之后填，就按最终 `get_center()` 重算。
 
 ### 参数扫描 + 实时读数
 
@@ -489,21 +463,9 @@ head.add_updater(follow); halo.add_updater(follow)
 ```
 
 ⚠️ **不要用 `self.time_since_start`**——`Scene` 没有这个属性，写了必崩（已实测 `AttributeError`）。
-需要按时间走的动画有两种正确写法：
-
-```python
-# 写法 A（推荐）：ValueTracker + animate.set_value()，时间轴完全可控
-head_u = ValueTracker(0.0)
-self.play(head_u.animate.set_value(1.0), run_time=3.0)
-
-# 写法 B：读Scene.time —— 它确实存在（float，随play 推进），可做连续运动
-def follow(m, dt):
-    m.move_to(curve[int((self.time * 0.35 % 1.0) * (N - 1))])
-```
-
-`Scene.time` 已实测：类型 `float`，初值 0.0，`self.wait(0.3)` 后为 0.3。
-**注意**：`self.time` 是场景累计时间、不会自动重置，多幕复用同一逻辑时要注意相位；
-需要「从 0 开始的进度」时用写法 A 的 `ValueTracker` 更直观。
+两种正确写法（`ValueTracker` 优先 / 读 `self.time` 做连续运动）、
+以及「写『某 API 不存在』前必须先 `hasattr` 验一遍」这条纪律，见
+`references/manim-api-troubleshooting.md` §3.2。
 
 ## 3D-9 收尾：白闪穿越
 
@@ -530,18 +492,13 @@ self.remove_fixed_in_frame_mobjects(flash)
 
 ```python
 cross = VGroup(Line(LEFT * 0.35, RIGHT * 0.35, stroke_width=2),
-               Line(UP * 0.35, DOWN * 0.35, stroke_width=2)).set_color(WHITE)
+               Line(UP * 0.35, DOWN * 0.35, stroke_width=2)).set_color(C_WHT)
 self.add_fixed_in_frame_mobjects(cross)
 ```
 
 ## 3D 性能参考（Manim 0.21，本机）
 
-| 操作 | 单次耗时 |
-|---|---|
-| `VMobject().set_points_smoothly(300 点)` | ≈ 4.4 ms |
-| `VMobject().set_points_smoothly(600 点)` | ≈ 8.7 ms |
-| `set_points_as_corners(450 点)` | ≈ 0.07 ms（便宜两个数量级） |
-| `Sphere(resolution=(6,6))` | ≈ 6.2 ms |
+单次操作耗时实测表见 `references/manim-api-troubleshooting.md` §3.5。
 
 - 每帧的 `always_redraw` / `add_updater` 对象控制在 2～3 个。
 - 需要 updater 的色带**放在场景顶层**（不要塞进 `VGroup` 里当子对象），

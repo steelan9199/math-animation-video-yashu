@@ -12,8 +12,8 @@
 from manim import *
 import numpy as np
 
-# ⚠️ manim 0.21 的 `from manim import *` **不导出** AnnularSector（环形扇形），
-# 必须从子模块显式 import。类名是 **AnnularSector（双 r）**，不是 AnnulusSector。
+# 环形扇形：类名是 **AnnularSector（双 r）**，不是 AnnulusSector（单 r）。
+# 0.21.0 实测顶层已导出，下面这行显式 import 只是双保险，删掉也能跑。
 from manim.mobject.geometry.arc import AnnularSector
 
 # ---------------- 配色（浅色公众号风） ----------------

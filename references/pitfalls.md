@@ -138,11 +138,9 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 | `always_redraw` 的对象用 `FadeOut` 淡出无效（每帧被重绘覆盖） | 用 `self.remove(obj)` 直接移除；换曲线时 `self.remove(old); self.add(new)`，同参数值下可无缝切换 |
 | `DoubleArrow`/`Arrow` 两端点重合时长度为 0 报错 | 扫描参数的取值范围不要包含 0（如振幅最低取 0.4） |
 | `lambda` 里引用的变量在 `always_redraw`/`add_updater` 里没定义就被调用 | 先在 `construct` 里定义变量再创建 `always_redraw`，且把 `add_updater` 放在被引用对象之后 |
-| **写了 `self.time_since_start`，`Scene` 根本没这个属性** | 用 `self.time`（float，随 play 推进，已实测）或 `ValueTracker`。写「某 API 不存在」前先 `hasattr` 验一遍 |
-| 🔴 **`Text(...).move_to([0, y, 0])` 里 `y` 是场景坐标，不是卡片内偏移** | 卡片内文字必须用 `fill_card()`（见下），写 `[0, 0.5, 0]` 会全部堆到画面中央 |
-| 🔴 **`Line([x,y],[x,y])` 传二维坐标列表会崩** | 坐标必须是三维：`Line([x, y, 0], [x2, y2, 0])`。报错见下 |
-| 🔴 **`always_redraw` 的回调函数必须零参数** | 写 `def build():`，不是 `def build(m)`。多传参直接 `TypeError` |
-| 🔴 **`VGroup` 没有 `.append()`，只有 `.add()`** | 收集 mobject 一律 `VGroup()` + `.add()`；`list` 才有 `.append()` |
+| **写了 `self.time_since_start`，`Scene` 根本没这个属性** | 用 `self.time`（float，随 play 推进，已实测）或 `ValueTracker`。写「某 API 不存在」前先 `hasattr` 验一遍，结论见 `manim-api-troubleshooting.md` §3.2 |
+| **三个静默失败的构造写法**（`move_to([0,y,0])` 让卡片文字堆到原点 / `Line` 端点传二维 / `always_redraw` 回调带参） | 见下方「构造类三个硬性写法」，附可直接复制的正确写法 |
+| **`VGroup` 没有 `.append()`，只有 `.add()`** | 收集 mobject 一律 `VGroup()` + `.add()`；`list` 才有 `.append()` |
 | **同一变量先当 `list` 后当 `VGroup` 用 → 渲染时才炸** | 声明时就定好类型。`cards = []` 后又想 `.arrange()` 会报 `'list' object has no attribute 'arrange'` |
 | **两个独立 `LaggedStart` 分别控制辉光层和亮线层，节奏对不上** | 轨迹会画成**虚线**。改为逐色带交错播放：同一色带的辉光与亮线放进同一个 `LaggedStart` |
 | **两套配色做 RGB 线性插值，中途掉进灰色** | 实测彩度最低 0.083。改用 HSV 旋转色相（`band_color(frac, g)`），全程 ≥0.82 |
@@ -173,10 +171,9 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 
 ---
 
-## 三维 mobject 构造的三个硬性写法（二维场景同样适用）
+## 构造类三个硬性写法（二维/三维通用）
 
-以下三条是 **2026-10-07 做 DivLM 论文动画时全部实际踩到**的，
-症状统一是「渲染 4~8 秒就退出 + 一段看不懂的 Rich 回溯」。
+以下三条症状统一是「代码不报错、渲染也成功，只有抽帧看图才能发现」。
 
 **1. `Line` / `Arrow` 的端点必须是三维坐标**
 
@@ -225,18 +222,7 @@ fill_card(card_obj, [("标题", 24, INK, 0.5),
 
 **为什么这条最危险**：写成 `c.add(Text(...).move_to([0, 0.5, 0]))` 时
 **代码不报任何错**，渲染也成功，只是所有卡片文字都跑到画面原点叠成一团。
-**只有抽帧看图才能发现** —— 这就是抽帧自检不能跳的最好例证。
 
 同理，`VGroup.arrange()` 会移动整个组，**加在组内的子 mobject 若是用
 `[0, y, 0]` 定位的就会错位**。要跟着动就必须在 `arrange` 之后按最终
 `get_center()` 重算，或直接用 `next_to()` / `relative_to()` 这类相对方法。
-
----
-
-## 构造类三大坑速查（2026-10-07 DivLM 论文动画）
-
-1. `move_to([0, y, 0])` 是场景坐标 → 卡片文字全堆到原点，用 `fill_card()`
-2. `Line`/`Arrow` 端点必须写三维 `[x, y, 0]`
-3. `always_redraw` 回调必须零参数 `def f():`
-
-**这三条代码都不报错、渲染也成功，只有抽帧看图才能发现。**

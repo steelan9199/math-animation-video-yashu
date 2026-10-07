@@ -78,8 +78,8 @@ Read(file_path="D:\software\uv\envs\py314-cpu\Lib\site-packages\manim\scene\thre
 
 ## 三、实战校验记录（0.21.0 实测，非文档摘抄）
 
-以下每条都跑过验证，且由 `scripts/check_manim_version.py` 持续守护。
-**别再重复踩。**
+以下每条都跑过验证，且由 `scripts/check_manim_version.py` **持续守护**
+（它每次开工都会重跑这批断言，漂移即退出码 1）。**别再重复踩。**
 
 ### 3.1 `from manim import *` 到底导出了什么颜色常量
 
@@ -178,7 +178,7 @@ points[:, 1] *= factor * zoom
 
 ## 四、相关文件
 
-- `SKILL.md` 的「版本规则」与「遇到 Manim API 问题时」—— 速查版
-- `scripts/check_manim_version.py` —— 版本守门
+- `SKILL.md` 硬约束 2—— 版本与锚点守门（速查版）
+- `scripts/check_manim_version.py` —— **版本 + 13 项 API锚点校验**，锚点漂移即退出码 1
 - `references/scene-template.md` —— 二维模板 + **真 3D 场景模板**（含 `fit_zoom` 反算实现）
 - `references/pitfalls.md` —— 已知坑全集（配色 / 动画机制 / 三维场景）
