@@ -5,11 +5,15 @@
 为什么要守锚点
 ------------
 `references/manim-api-troubleshooting.md` §3 里那些论断（`Scene.time` 存在、
-`CYAN` 不导出、`CENTER` 不存在、`AnnularSector` 不在顶层…）是**实测结论**，
+`CYAN` 不导出、`CENTER` 不存在、`AnnularSector` 顶层已导出…）是**实测结论**，
 不是文档抄录。Manim 一升级它们就可能失效，而失效方式是**静默的**：
 `hasattr` 变成 False 只在运行时炸，代码看着完全正常。
 
 所以开工前跑一次：版本号不对、或任一锚点漂移 ⇒ 退出码 1，先修文档再开工。
+
+⚠️ 本文件自身的注释也可能写错——注释与检查项同源，不能拿代码互证。
+改结论前先实跑本脚本看真实输出，别靠读代码推断
+（见 `references/自进化与维护.md` §11.1 循环论证陷阱）。
 
 用法:
     python check_manim_version.py          # 人读的报告

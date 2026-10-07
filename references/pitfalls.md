@@ -1,6 +1,6 @@
 # 已知坑全集（Manim 0.21.0 / math-animation-video）
 
-SKILL.md 里只留 6 行速查；**排查具体问题时来这里查**。全部是本机真实交付中踩过的，
+SKILL.md 里只留硬约束与速查指针；**排查具体问题时来这里查**。全部是本机真实交付中踩过的，
 不是抄文档。表头即分类：`环境与流程` / `配色与文字` / `动画机制` / `三维场景`。
 
 ---
@@ -14,7 +14,7 @@ SKILL.md 里只留 6 行速查；**排查具体问题时来这里查**。全部�
 | 自检阶段走 MCP（`preview_scene`）可能把 MCP 进程一起带崩 | 自检一律直接跑 `scripts/render_video.py` + `scripts/contact_sheet.py`，不过 MCP |
 | 抽帧只看前 N 秒，漏掉闪白/收尾卡片 | 结尾段落必须用 `contact_sheet.py --start <秒>` 单独抽一张 |
 | `contact_sheet.py` 拼图没覆盖全片却看不出来 | 用 `--auto` 让它自动算 `every`；认输出里的 `⚠️ 未覆盖全片` 告警 |
-| 场景 35 s，720p 渲染要 107 s，撞上 120 s 上限 | 预览耗时 × 3～5 做预估，超 110 s 就走降级脚本 |
+| 场景 35 s，成片预估 105～175 s（预览 × 3～5），可能撞上 MCP 的 120 s 硬限 | 预估 < 110 s 才调 MCP；≥ 110 s 直接走`render_video.py`。区间跨阈值时不要赌，按上限算 |
 | 预览／渲染超时后原地重试，白等一轮 | 超时即换路径：预览超时走 `render_video.py --quality low`，成片超时走 `--quality medium` |
 | 渲染文件重名加 `_1` 后缀，误把预览片当成品交付 | 只用返回值里的 `file_path` |
 | **渲染「卡住」时靠 `sleep` / 轮询反复确认 → 27 分钟纯空转（最大一次浪费）** | 等 30 s 无产出就**看 `_render_tmp` 里有没有帧**：只有 `scene.py` ⇒ 不是慢、是跑不动，立刻改代码 |
@@ -31,14 +31,19 @@ SKILL.md 里只留 6 行速查；**排查具体问题时来这里查**。全部�
 
 `render_video.py` 和 MCP `render_animation` 返回的 `error_msg` 是
 **Rich 高亮框的尾部**，报错行常被 `│ ... │` 截断，看不全。
-**代码报错的排查一律绕过包装层**：
+**代码报错的排查一律绕过包装层**，按报错阶段选工具：
+
+| 报错阶段 | 工具 | 是否渲染像素 | 耗时 |
+|---|---|---|---|
+| 构造 / 语法（`construct` 里抛异常） | `scripts/probe_charts.py` | ❌ dry_run | 秒 |
+| 渲染期（mobject 数量、LaTeX、像素级） | `manim render -ql` | ✅ | 真实渲染耗时 |
 
 ```powershell
 cd <工作目录>
 & "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe" -m manim render -ql --format=mp4 -o _dbg <scene.py> <SceneClass> > _dbg.txt 2>&1
 ```
 
-这样能拿到**完整 traceback**（含 `文件:行号 in construct` 和出错源码上下文）。
+两种方式都能拿到**完整 traceback**（含 `文件:行号 in construct` 和出错源码上下文）。
 
 **按耗时判性质，别一律当"卡住"**：
 
@@ -85,49 +90,50 @@ for k, v in tests.items():
 
 ### 字体名必须精确匹配（含 GB 后缀）
 
-Manim 只认注册名，**不匹配就静默回退到 `Sans`，只打一条 WARNING**：
+Manim 只认注册名，**不匹配就静默回退到系统默认无衬线字体，只打一条 WARNING**
+（WARNING 走 logger，不落 stdout/stderr —— 想自动判定必须捕获 logging，不是 `sys.stderr`）：
 
 ```
 WARNING  Font LXGW WenKai not in [...]   couldn't load font "LXGW WenKai Not-Rotated 10",
 falling back to "Sans Not-Rotated 10", expect ugly output.
 ```
 
-**本机实测**（2026-10-07，用 `Text("测试", font=...)` 逐个探测）：
+> 上例中的 `LXGW WenKai` 是**漏写 ` GB` 的错误写法演示**，不是可用字体名。
+> 白名单只有 `LXGW WenKai GB` 与 `Noto Sans SC` 两个。
 
-| 写法 | 结果 |
-|---|---|
-| `LXGW WenKai GB` | ✅ 已装（**必须带 GB**） |
-| `LXGW WenKai`（漏了 GB） | ❌ 回退，WARNING |
-| `Noto Sans SC` | ✅ 已装（用户级） |
-| `Noto Serif SC` | ✅ 已装 |
-| `Source Han Sans SC` | ❌ 本机零命中，未装 |
+**本机实测**（2026-10-07 复查安装用 `windows-font-finder-yashu`；Manim 认不认用 `Text` 探测）：
 
-> 本机这两个 family 都在**用户目录**（`C:\Users\Administrator\AppData\Local\Microsoft\Windows\Fonts`），
+| 白名单字体 | 安装 | Manim 可用 |
+|---|---|---|
+| `Noto Sans SC` | ✅ 用户级 | ✅ 无 WARNING |
+| `LXGW WenKai GB` | ✅ 用户级 | ✅ 无 WARNING |
+| `LXGW WenKai`（漏 GB，白名单外的错误写法） | — | ❌ 回退 + WARNING |
+
+> 两个 family 都在**用户目录**（`C:\Users\Administrator\AppData\Local\Microsoft\Windows\Fonts`），
 > 不在 `C:\Windows\Fonts`。**只扫系统目录会全部漏掉**（本机实测漏过一次，误判「没装」）。
 
-**排查字体是否装了，用 `windows-font-finder-yashu` 技能，别手写命令**
-—— 本技能只关心「Manim 能不能用这个 family 名」，字体是否安装是那个技能的职责。
-
+**查是否安装用 `windows-font-finder-yashu` 技能，别手写命令**
+—— 本技能只关心「Manim 能不能用这两个 family 名」，安装与授权是那个技能的职责。
 ```powershell
 # 权威查法：列出 family / 注册表名 / 路径，还能看授权与商用风险
 & "D:\software\uv\python\cpython-3.14.7-windows-x86_64-none\python.exe" `
   "~\.workbuddy\skills\windows-font-finder-yashu\scripts\list_fonts.py" --kw "霞鹜" --out _f.txt
 ```
 
-若只想快速确认「Manim 认不认这个 family 名」，让 Manim 自己报也行：
+若只想确认「Manim 认不认白名单这两个」，让 Manim 自己报：
 
 ```powershell
 & "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe" -c "from manim import *; [print(n, '-> OK' if Text('测试', font=n) else '') for n in ['LXGW WenKai GB','Noto Sans SC']]" > _fchk.txt 2>&1
 ```
 
-看 stderr 有没有 `falling back` —— 有就是没装。
+日志里出现 `falling back` 就是没装/名字写错了。
 
 **顺带一条**：Manim 的 WARNING 里会列出**本机全部可用 family 名**，
 排查时直接看这段列表最快，不用另跑命令。
 
-**选哪种**：LXGW WenKai GB 是楷体，教材/手写感；`Noto Sans SC` 是黑体，
-更贴近论文图表的正式排版。**讲论文/学术内容优先 Noto Sans SC**，
-讲基础数学/给中学生看用 LXGW。两者都是 SIL OFL 1.1，可商用。
+**选哪种**：`LXGW WenKai GB` 楷体，教材/手写感；`Noto Sans SC` 黑体，
+更贴近论文图表的正式排版。**讲论文/学术内容优先 `Noto Sans SC`**，
+讲基础数学/给中学生看用 `LXGW WenKai GB`。两者都是 SIL OFL 1.1，可商用。
 
 ---
 
@@ -162,12 +168,34 @@ falling back to "Sans Not-Rotated 10", expect ugly output.
 | 同一时刻画面上有两行标题（新字幕 + 旧标题没删） | 先 `FadeOut` 旧标题，再 `FadeIn` 新字幕 |
 | 色带 updater 塞在 `VGroup` 里当子对象 | `clear_updaters()` / `self.remove()` 容易漏。**updater 对象一律放场景顶层** |
 | 不先验证居中算法就直接写正式场景 | 先渲染 20 秒标定场景：画面正中钉一个十字，看曲线是否稳稳穿过 |
-| **逐点建 `Dot3D` 渲染大批量点云 → 启动阶段直接卡死** | 改单个 `PMobject` + `add_points(P, rgbas=...)`。**10 万级 mobject 必卡，1 个 mobject 秒出** |
+| **逐点建 `Dot3D` 渲染点云 → 启动阶段就卡死** | 改单个 `PMobject` + `add_points(P, rgbas=...)`。**不设规模例外**，见下方实测 |
 | **3D 场景里点云读起来像「实心块」** | 只保留「首次越界步数 ≥ `min_steps`」的贴表面点；否则外围一步就飞出去的点会把内部全遮住 |
 | **点云像一层均匀的雾，没有体积** | 上色乘一个整体明暗因子（按 `w` 或深度），让近处壳层更亮 |
 | **公式/读数与主体或标题带打架** | 3D 主体先按 `cap_frac` 压到画面中下部，把**上 1/4 留作公式带、下边缘留作字幕带**；公式固定在 `FORM_Y≈1.7`，不要放画面正中 |
 | **同一参数扫描，不同取值的形态几乎一样（观众看不出差别）** | 检查配色是否**已饱和**：若各取值都被映到最亮端，视觉自然无差。改为按**各自形态范围**归一化配色，并配一个实时读数（`p = N`）强化差异 |
 | **参数扫描时主体冲出画面** | 每个取值**各自拟合 zoom**（不同参数的点云半径可能相差 60%+），而不是全程沿用同一个 zoom |
+
+### 点云图元：为什么没有「规模阈值」
+
+`Dot3D` 与 `PMobject + add_points()` 的实测耗时（Manim 0.21.0，CPU，每档取 3 次中位数）：
+
+| 点数 | `Dot3D` 构建 | `PMobject` 构建 | `Dot3D` 出帧 | `PMobject` 出帧 | 构建耗时倍率 |
+|---|---|---|---|---|---|
+| 1 000 | 11.6 s | 0.001 s | 31.1 s | 0.008 s | ~1 万倍 |
+| 2 000 | 23.2 s | 0.001 s | 62.3 s | 0.008 s | ~2 万倍 |
+
+两条规律：
+
+- **`Dot3D` 线性增长**：约 **11.6 ms/点**（1000→2000 点，耗时正好翻倍）。
+  据此外推：2 万点 ≈ 构建 3.9 min，10 万点 ≈ 构建 19 min。
+- **`PMobject` 与点数无关**，恒定 0.008 s——加点是塞数组，不是造对象。
+
+**结论：不存在交叉点，所以不设阈值。** 1000 点这种"小规模"场景 `Dot3D` 都已经慢到不可接受，
+写"> 1 万点才用 `PMobject`"会暗示小规模可以用 `Dot3D`，那是错的。
+
+> 实测只做到 2000 点就停：斜率已经完全线性，2 万/10 万纯属浪费机时。
+> 这也复演了一遍事故机制——`Dot3D` 的**磁盘上一个帧都没有**，看着像"慢"，
+> 实则根本没开始渲染。测大点数时务必给每个 case 设硬超时，别硬等。
 
 ---
 

@@ -79,8 +79,8 @@ class MyScene(Scene):          # 类名必须 ASCII，渲染器靠它取场景�
 
 ⚠️ 卡片内文字用 `fill_card()` 换算成场景坐标，别手填 `move_to([0, y, 0])`。
 `Line`/`Arrow` 端点必须三维、`always_redraw` 回调必须零参数、
-`VGroup` 只有 `.add()` 没有 `.append()`——这四个坑的完整解释见
-`references/pitfalls.md`「构造类三个硬性写法」。
+`VGroup` 只有 `.add()` 没有 `.append()`——这几个坑的完整解释见
+`references/pitfalls.md`「构造类三个硬性写法」与「动画机制」表。
 
 ```python
 INK = "#21242C"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"
@@ -90,25 +90,17 @@ INK = "#21242C"; GRIDC = "#E4E7EE"; GRAY = "#6B7280"
 #    不在 C:\Windows\Fonts —— 用 windows-font-finder-yashu 技能查，别只扫系统目录。
 FONT = "Noto Sans SC"
 
+# fill_card() 的实现见 references/pitfalls.md「构造类三个硬性写法」第 3 条
+# （为什么不能手填 move_to([0, y, 0])），此处只给用法。
+
+
 def card(w, h, fill="#F4F6FB", stroke=GRIDC, radius=0.18):
     r = RoundedRectangle(width=w, height=h, corner_radius=radius)
     r.set_fill(fill, opacity=1.0).set_stroke(stroke, width=1.4)
     return r
 
 
-def fill_card(c, items):
-    """往已定位的卡片里塞文字。items = [(文本, 字号, 颜色, 相对中心纵向偏移), ...]
-
-    必须先 card(...).move_to(...) 定位，再调 fill_card。
-    """
-    cx, cy, _ = c.get_center()
-    for txt, size, color, dy in items:
-        c.add(Text(txt, font=FONT, font_size=size, color=color)
-              .move_to([cx, cy + dy, 0]))
-    return c
-
-
-# 用法：先定位 → 再填字→ 最后整体 arrange
+# 用法：先定位 → 再填字 → 最后整体 arrange
 a = card(2.9, 2.1).move_to([-3.55, 0.55, 0])
 fill_card(a, [("基础模型", 25, INK, 0.5),
               ("W0", 32, BLUE, -0.08),

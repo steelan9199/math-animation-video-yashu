@@ -21,15 +21,12 @@
 
 ## 一、为什么要写这份文件
 
-Manim 的 API 迭代很快，而本机**锁定 0.21.0**。凭记忆写代码是本技能最大的风险来源
-——本次交付中 11 次渲染里有 3 次直接崩溃，**全部是 API 问题**（不是逻辑问题）：
+Manim 的 API 迭代很快，而本机**锁定 0.21.0**。凭记忆写代码是本技能最大的风险来源——
+真实交付里最贵的两类失败都是 API 层面的：**用了不存在的常量名**（§3.1）与
+**写了不存在的属性**（§3.2），两者都是 `NameError` / `AttributeError`，
+代码逻辑看着完全正确，渲染启动才炸。
 
-1. 用了 `CYAN` → `NameError`（该常量不存在）
-2. `np.linspace` 末位索引越界 → `IndexError`
-3. 写了 `self.time_since_start` → `AttributeError`（该属性不存在）
-
-第 1、3 条都是「凭印象写 API」的直接后果。这份文件的作用是：
-**把「猜 API」变成「查 API」，并给出查的顺序。**
+这份文件的作用是：**把「猜 API」变成「查 API」，并给出查的顺序。**
 
 ---
 
@@ -92,11 +89,8 @@ Read(file_path="D:\software\uv\envs\py314-cpu\Lib\site-packages\manim\scene\thre
 同时存在 `PURE_CYAN`（`#00FFFF`）、`PURE_MAGENTA`（`#FF00FF`）、
 以及全套 `_A`~`_E` 变体（`BLUE_A`…`TEAL_E`）。
 
-> **本次踩坑**：写标定场景时凭印象用了 `CYAN`，渲染直接
-> `NameError: name 'CYAN' is not defined`。
->
-> **教训**：想要精确的霓虹色（如 `#22D3EE`）**一律自己定义十六进制常量**，
-> 不要赌 Manim 有没有这个名字。
+> **做法**：想要精确的霓虹色（如 `#22D3EE`）**一律自己定义十六进制常量**，
+> 不要赌 Manim 有没有这个名字——写错常量名是 `NameError`，不报错才奇怪。
 
 ### 3.2 `Scene` 的时间属性
 
@@ -124,9 +118,8 @@ def follow(m, dt):
 ⚠️ `self.time` 是**场景累计时间、不会重置**。多幕复用同一逻辑时注意相位；
 需要「从 0 开始的进度」时用写法 A。
 
-> **本次踩坑**：我曾断言「`Scene` 没有时间属性，只能用 ValueTracker」，
-> 被本次校验推翻——`self.time` 是有的，只是不叫 `time_since_start`。
-> **教训：写「某 API 不存在」这种断言前，必须先 `hasattr` 验一遍。**
+> **纪律：写「某 API 不存在」这种断言前，必须先 `hasattr` 验一遍。**
+> 本节两条结论都由 `scripts/check_manim_version.py` 持续守护。
 
 ### 3.3 3D 相关 API
 
@@ -161,7 +154,7 @@ points[:, 1] *= factor * zoom
 | `ManimColor("#22D3EE")` | 构造接受十六进制字符串，直接返回 `ManimColor` |
 | 与 `set_stroke()` 配合 | `interpolate_color` 的返回值可直接喂给 `set_stroke()` |
 
-### 3.5 性能实测（与文档数字一致，复测通过）
+### 3.5 性能实测（本机 0.21.0 复现）
 
 | 操作 | 单次耗时 | 备注 |
 |---|---|---|
@@ -182,3 +175,6 @@ points[:, 1] *= factor * zoom
 - `scripts/check_manim_version.py` —— **版本 + 13 项 API锚点校验**，锚点漂移即退出码 1
 - `references/scene-template.md` —— 二维模板 + **真 3D 场景模板**（含 `fit_zoom` 反算实现）
 - `references/pitfalls.md` —— 已知坑全集（配色 / 动画机制 / 三维场景）
+- `references/chart-generation.md` —— 图表路线的坑与`charts_lib.py` 公共库
+- `references/wechat-cover.md` —— 公众号封面路线（尺寸、版式、字体授权）
+- `references/incidents/mandelbulb-postmortem.md` —— 27 分钟空转事故复盘

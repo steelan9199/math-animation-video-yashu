@@ -7,8 +7,9 @@
 //
 //   1. 引用断链   —— SKILL.md / references 里提到的文件是否真实存在
 //   2. 负向声明   —— 全库有无「已废弃 / 勿再使用 / 已推翻 / 曾要求」类痕迹
-//   3. 字体白名单 —— font= / set_font(font= 出现的字体是否都在白名单内
-//   4. 体量红线—— 常驻层 SKILL.md 与单篇 references/*.md 是否超线
+//   3. 字体白名单 —— 全库只允许 Noto Sans SC / LXGW WenKai GB两个名字，
+//      出现在任何位置（font=、正文、表格、注释、反例）都算违规，无豁免
+//   4. 体量红线—— 常驻层 SKILL.md（tok 与字符两条并列）与单篇 references/*.md 是否超线
 //
 // 用法：
 //   node scripts/skill_audit.js            摘要（默认）
@@ -31,6 +32,7 @@ const SKILL_DIR = path.resolve(__dirname, "..");
 // 余量刻意留得小（约 2.6%）：够插一行指针，不够塞一段新规则 ⇒ 逼着新内容下沉 references。
 const BUDGET = {
   skillTok: 3300, // 常驻层 SKILL.md（每轮对话重发，杠杆最大）
+  skillChars: 10000, // 常驻层 SKILL.md 字符数上限（与 tok 线并存，任一超线即红）
   refChars: 20000, // 单篇 references/*.md（命中才读）
   incidentChars: 24000, // 单篇事故复盘（只在重犯同源事故时才读）
 };
@@ -66,24 +68,23 @@ function readText(p) {
   }
 }
 
-function walk(dir, out = []) {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (e.name === "node_modules" || e.name === "__pycache__") continue;
-      walk(full, out);
-    } else if (e.name.endsWith(".md") || e.name.endsWith(".py")) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
 function allDocs() {
-  const docs = [path.join(SKILL_DIR, "SKILL.md")];
-  docs.push(...walk(path.join(SKILL_DIR, "references")));
-  docs.push(...walk(path.join(SKILL_DIR, "scripts")));
+  // 扫整个技能目录（排除 .git / 产物目录），不只references/ 与 scripts/——
+  // 否则根目录下的 .md 会成为藏违规字体名的盲区。
+  const SKIP_DIRS = new Set([".git", "node_modules", "__pycache__", "media", "_media", "_backup"]);
+  const docs = [];
+  const walkAll = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) {
+        if (SKIP_DIRS.has(e.name)) continue;
+        walkAll(path.join(dir, e.name));
+      } else if (/\.(md|py|js)$/.test(e.name)) {
+        docs.push(path.join(dir, e.name));
+      }
+    }
+  };
+  walkAll(SKILL_DIR);
   return docs.filter((f) => fs.existsSync(f));
 }
 
@@ -126,11 +127,14 @@ function checkNegative(docs) {
   return hits;
 }
 
-// ── 闸 3：字体白名单 ────────────────────────────────────────────────
-const FONT_RE = /(?:font|set_font\(\s*font)\s*[=:]\s*["']([^"']+)["']/g;
-// 行级豁免：文档里**以反例形式**引用违规字体名是必要的（教人别写），
-// 在该行末尾加 `audit:allow-font` 即可豁免，但豁免本身会被打印出来，保证不会被滥用。
-const ALLOW_FONT_FLAG = "<!--allow-font-->";
+// ── 闸 3：字体白名单 —— 零容忍 ──────────────────────────────────────
+// SKILL.md 硬约束 1：全库只允许 Noto Sans SC 与 LXGW WenKai GB 两个字体名。
+// 白名单外的字体名**在任何位置都不许出现**，包括正文、表格、注释、反例。
+// 因此不设行级豁免：想提别的字体就不写，想教人别写就不举那个名字。
+const FONT_RE = /(?:font|set_font\(\s*font)\s*[=:]\s*["']([^"']+)["']/gi;
+// 反查用：扫描全文任意位置的疑似字体名（限含空格的 family 形态，避免误伤普通英文词）
+const FONT_NAME_SCAN =
+  /\b(?:Noto|Source Han|Alibaba|PuHui|YaHei|PingFang|SimHei|SimSun|Helvetica|Arial|Times)\s+[A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z0-9]+)?/g;
 
 function checkFonts(docs) {
   const bad = [];
@@ -139,10 +143,14 @@ function checkFonts(docs) {
     readText(d)
       .split(/\r?\n/)
       .forEach((line, i) => {
-        const exempt = line.includes(ALLOW_FONT_FLAG);
         for (const m of line.matchAll(FONT_RE)) {
           if (!FONT_ALLOW.has(m[1])) {
-            bad.push({ file: rel(d), line: i + 1, font: m[1], exempt });
+            bad.push({ file: rel(d), line: i + 1, font: m[1], kind: "font=" });
+          }
+        }
+        for (const m of line.matchAll(FONT_NAME_SCAN)) {
+          if (!FONT_ALLOW.has(m[0].trim())) {
+            bad.push({ file: rel(d), line: i + 1, font: m[0].trim(), kind: "全文出现" });
           }
         }
       });
@@ -161,7 +169,9 @@ function checkSize(docs) {
 
     if (r === "SKILL.md") {
       const t = estTokens(text);
-      if (t > BUDGET.skillTok) red.push({ what: "SKILL.md 超红线", detail: `${t} > ${BUDGET.skillTok} tok` });
+      if (t > BUDGET.skillTok) red.push({ what: "SKILL.md 超 tok 红线", detail: `${t} > ${BUDGET.skillTok} tok` });
+      if (text.length > BUDGET.skillChars)
+        red.push({ what: "SKILL.md 超字符红线", detail: `${text.length} > ${BUDGET.skillChars} 字符` });
     } else if (r.endsWith(".md") && r.includes("incidents")) {
       if (text.length > BUDGET.incidentChars)
         red.push({ what: r, detail: `${text.length} > ${BUDGET.incidentChars} 字符` });
@@ -197,6 +207,7 @@ function main() {
   console.log(`技能目录：${SKILL_DIR}`);
   console.log(
     `\n体量：SKILL.md ${skillTok} tok / 上限 ${BUDGET.skillTok}` +
+      `  ·  ${rows.find((r) => r.file === "SKILL.md")?.chars ?? "?"} 字符 / 上限 ${BUDGET.skillChars}` +
       (argv.includes("--top") ? "\n单篇文档（超「整篇读」阈值会标 ⚠️）：" : ""),
   );
   for (const r of rows.filter((x) => x.file.endsWith(".md") && x.file !== "SKILL.md")) {
@@ -213,10 +224,10 @@ function main() {
   for (const h of neg.slice(0, 15)) console.log(`  ❌ ${h.file}:${h.line}  [${h.word}] ${h.text}`);
 
   console.log(
-    `[字体白名单] ${fontRed.length ? `❌ ${fontRed.length} 处` : `✅ 全部合规${badFont.length ? `（${badFont.length} 处反例引用已豁免）` : ""}`}`,
+    `[字体白名单] ${fontRed.length ? `❌ ${fontRed.length} 处` : "✅ 全库仅两个白名单字体名"}`,
   );
   for (const h of badFont.slice(0, 15)) {
-    console.log(`  ${h.exempt ? "➖" : "❌"} ${h.file}:${h.line}  font="${h.font}"${h.exempt ? "  (反例引用，已豁免)" : ""}`);
+    console.log(`  ❌ ${h.file}:${h.line}  [${h.kind}] ${h.font}`);
   }
 
   console.log(`[体量红线] ${sizeRed.length ? `❌ ${sizeRed.length} 处` : "✅ 全部达标"}`);

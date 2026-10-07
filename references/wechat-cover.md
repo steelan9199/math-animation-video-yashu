@@ -9,7 +9,7 @@
 | -------------------------------- | ------------------------------------------------------- |
 | **公式 / 函数图像 / 柱状折线图 / 几何图形 / 三维结构** | 左文右图版式（见 §六），右侧图卡放公式与图表 |
 | **纯文字排版 / 金句卡 / 要点卡** | 单卡居中版式：大字主标 + 细分割线 + 底部落款，靠 `fit_board` 兜底缩放（见 §6.2） |
-| **人物/ 场景插画** | 用几何图元拼装示意性图形；**照片级 / 手绘级插画本技能做不了**，直接告诉用户这个限制，不要硬凑 |
+| **人物 / 场景插画** | 用几何图元拼装示意性图形；**照片级 / 手绘级插画本技能做不了**，直接告诉用户这个限制，不要硬凑 |
 
 ---
 
@@ -24,29 +24,28 @@
 - 比例不对 = 微信后台会裁。发布前若不确定，以后台实际裁切框为准。
 - 只做大图时不必问用户；用户明确说「次条」「小图」才切 1:1。
 
-## 二、字体授权：只能用 OFL 开源字体，绝不用系统商业字体
+## 二、字体授权：白名单只有两款，且都可商用
 
-公众号封面会公开发布、有商业属性，**字体必须是可商用的开源字体**。
+公众号封面会公开发布、有商业属性，**字体必须可商用**。本技能**只允许两个字体名**：
 
-| 字体                    | 授权          | 可商用       | CSS/manim family             |
-| --------------------- | ----------- | --------- | ---------------------------- |
-| **思源黑体 Noto Sans SC** | SIL OFL 1.1 | ✅         | `Noto Sans SC` ✅ **本技能封面默认** |
-| 霞鹜文楷 LXGW WenKai GB   | SIL OFL 1.1 | ✅         | `LXGW WenKai GB`             |
-| 阿里巴巴普惠体               | 免费商用        | ✅         | `Alibaba PuHuiTi`            |
-| 思源宋体 Noto Serif SC    | SIL OFL 1.1 | ✅         | `Noto Serif SC`              |
-| **微软雅黑 / 苹方 / 微软正黑**  | 商业授权        | ❌ **有风险** | ⛔ **封面禁用**                   |
+| 字体 | 授权 | 可商用 | 本机安装 | 封面适用 |
+|---|---|---|---|---|
+| **`Noto Sans SC`** | SIL OFL 1.1 | ✅ | ✅ 用户级 | ✅ **封面默认** |
+| **`LXGW WenKai GB`** | SIL OFL 1.1 | ✅ | ✅ 用户级 | ⚠️ 楷体小尺寸发虚，仅视频正文/字幕 |
 
 规则：
 
-- **SIL OFL 1.1 允许**：商用、修改字体、把字体渲染进图片/视频。  
+- **白名单外的字体名一律不得出现在本技能任何文件里**（正文、表格、注释、反例都不例外）。
+  授权合规不等于可用——不在上表里的一律不写进 `font=`。
+- **SIL OFL 1.1 允许**：商用、修改字体、把字体渲染进图片/视频。
   唯一义务是**不得单独售卖字体文件本身**。「渲染成公众号封面」属于正常使用，完全合规。
 - **封面固定用 `Noto Sans SC`**：黑体系，适合远看，公众号列表页缩略图下辨识度最好。
-- `LXGW WenKai GB` 虽然也可商用，但**楷体在小尺寸封面下笔画发虚**，只用于视频正文/字幕。
-- **绝不写 `Microsoft YaHei` / `微软雅黑`**：Monotype 商业授权，商用有法律风险。
-- 拿不准某个字体时，用 `windows-font-finder-yashu` 技能查授权，不要凭印象判断。
+- `LXGW WenKai GB` 虽在白名单内，但**楷体在小尺寸封面下笔画发虚**，封面别用。
+- 拿不准时用 `windows-font-finder-yashu` 技能查，不要凭印象判断。
 
-本机两款字体均已安装（`AppData\Local\Microsoft\Windows\Fonts`，用户级）：  
+本机两款均已安装于用户目录（`AppData\Local\Microsoft\Windows\Fonts`）：
 `NotoSansSC-{Thin,Light,Regular,Medium,Bold,Black}.otf`、`LXGWWenKaiGB-{Light,Regular,Medium}.ttf`。
+**安装与授权的权威查法是 `windows-font-finder-yashu` 技能。**
 
 ## 三、渲染命令：直接跑 manim，不走 MCP、不走 render_video.py
 
@@ -71,7 +70,7 @@ cd <工作目录>
 
 执行纪律：
 
-- 一律 `run_in_background=true`（渲染纪律第 1 条）。
+- 一律 `run_in_background=true`（`SKILL.md` 硬约束 3）。
 - **`--renderer=cairo`**：纯 CPU、无 GPU 依赖、PNG 带抗锯齿，比 opengl 稳。
 - **`-s`**：只保存最后一帧。封面是静态图，不要 mp4、不要 `--quality`。
 - **不要用 `scripts/render_video.py`**：它会注入默认中文字体 `LXGW WenKai GB`，  
@@ -115,7 +114,7 @@ Manim 默认 `frame_width = 14.222`、`frame_height = 8`，是 16:9。**直接�
 from manim import *
 
 config.frame_width = 14.222
-config.frame_height = 14.222 * 766 / 1800      # = 6.051，严格锁 2.35:1
+config.frame_height = 14.222 * 766 / 1800      # = 6.052，严格锁 2.35:1
 ```
 
 - **写在模块顶层**（已验证）。不要挪进 `construct()`——那时 camera 已按旧尺寸建立。
@@ -126,18 +125,8 @@ config.frame_height = 14.222 * 766 / 1800      # = 6.051，严格锁 2.35:1
 封面最常见的事故是**文字溢出画布被裁掉一截**。原因：中文宽度随字号线性增长，  
 而 `frame_width=14.222` 下留白只有十来个单位，凭感觉估不准。
 
-**方案 A（首选，兜底自动缩）**：全场景组装成一个 `VGroup`，收尾统一处理
-
-```python
-def fit_board(board, margin=0.55):
-    """把整个版面压进安全区。margin 是四边留白（单位，不是 px）。"""
-    fw, fh = config.frame_width, config.frame_height
-    if board.width + 2 * margin > fw:
-        board.scale_to_fit_width(fw - 2 * margin)
-    if board.height + 2 * margin > fh:
-        board.scale_to_fit_height(fh - 2 * margin)
-    return board
-```
+**方案 A（首选，兜底自动缩）**：全场景组装成一个 `VGroup`，收尾统一压进安全区。
+`fit_board()` 的可复制实现见 §六模板（8 行），逻辑是「宽高超限就整体缩放」。
 
 **方案 B（调试时先看一眼数）**：
 
@@ -351,8 +340,6 @@ class QuoteCover(Scene):            # 类名必须 ASCII
 
 | 坑 | 正确做法 |
 |---|---|
-| `--resolution` 传 `1800x766` | manim 只认逗号 `1800,766`。传错**退出码仍是 0 但零产出**，必须用 `render_cover.py` 或自行转换 |
-| 命中哈希缓存，交付了上一轮的旧图 | 用时 1~2 秒就是命中了；改场景文件或删 `media_dir`，取产物按 mtime 过滤 |
 | 忘了改 `frame_height`，画面比例错 | 模块顶层锁 `config.frame_height = frame_width * H / W` |
 | 文字溢出画布被裁 | `fit_board()` + 打印 board 尺寸，**不要目测估中文宽度** |
 | 竖排文字/多行卖点在卡片里堆到原点 | `in_card(cx, cy, [(m, dx, dy)])` 相对摆位，或 `arrange` **后**按 `get_center()` 重算 |
