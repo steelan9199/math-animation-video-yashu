@@ -1,0 +1,258 @@
+#!/usr/bin/env node
+// skill_audit.js — 自进化门禁 / 上下文成本审计器
+//
+// 为什么存在：本技能是「活文档」，每次自进化都要往 references/ 里加知识、删错误。
+// 如果没有测量，加知识就没有上限，文档很快膨胀到读不动、检索不到、命中率崩掉。
+// 本脚本把《references/自进化与维护.md》里的规则变成四道可执行的闸：
+//
+//   1. 引用断链   —— SKILL.md / references 里提到的文件是否真实存在
+//   2. 负向声明   —— 全库有无「已废弃 / 勿再使用 / 已推翻 / 曾要求」类痕迹
+//   3. 字体白名单 —— font= / set_font(font= 出现的字体是否都在白名单内
+//   4. 体量红线—— 常驻层 SKILL.md 与单篇 references/*.md 是否超线
+//
+// 用法：
+//   node scripts/skill_audit.js            摘要（默认）
+//   node scripts/skill_audit.js --top      附体量 TOP 8 与断链明细
+//   node scripts/skill_audit.js --json     机器可读
+//   node scripts/skill_audit.js --save     记一条历史，作为下次对比基准
+//
+// 退出码：0 全过 · 1 有红灯（push.js 会据此拒绝推送）
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SKILL_DIR = path.resolve(__dirname, "..");
+
+// ── 红线（与《自进化与维护.md》§九 必须同步改）────────────────────────
+// 首次标定 = 3300 tok。常驻层现有内容已全部是 T1 级（漏读即白跑/返工/破坏合规），
+// 且已做过一轮瘦身（6273 → 3216 tok，降 49%），再砍就要赶走事故级内容了。
+// 余量刻意留得小（约 2.6%）：够插一行指针，不够塞一段新规则 ⇒ 逼着新内容下沉 references。
+const BUDGET = {
+  skillTok: 3300, // 常驻层 SKILL.md（每轮对话重发，杠杆最大）
+  refChars: 20000, // 单篇 references/*.md（命中才读）
+  incidentChars: 24000, // 单篇事故复盘（只在重犯同源事故时才读）
+};
+
+// 「整篇读」阈值：超过此值，SKILL.md 应标注「先 Grep 局部读」
+const GREP_FIRST_CHARS = 12000;
+
+// ── 字体白名单（与 SKILL.md 硬约束同步）──────────────────────────────
+const FONT_ALLOW = new Set(["Noto Sans SC", "LXGW WenKai GB"]);
+
+// ── 负向声明词表（《自进化与维护.md》§三）──────────────────────────────
+// 本文件必须引述这些词形才能说明禁令 ⇒ 自身豁免
+const NEGATIVE_WORDS = ["已废弃", "勿再使用", "已推翻", "曾要求", "已失效", "不再支持"];
+const NEGATIVE_EXEMPT = new Set(["自进化与维护.md", "skill_audit.js"]);
+
+const HISTORY_FILE = path.join(__dirname, ".skill-audit-history.jsonl");
+
+/** 估算 token：中文 0.75/字，其余 3.5 字符/token */
+function estTokens(text) {
+  let cjk = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0);
+    if (c >= 0x4e00 && c <= 0x9fff) cjk++;
+  }
+  return Math.round(cjk * 0.75 + (text.length - cjk) / 3.5);
+}
+
+function readText(p) {
+  try {
+    return fs.readFileSync(p, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+function walk(dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name === "node_modules" || e.name === "__pycache__") continue;
+      walk(full, out);
+    } else if (e.name.endsWith(".md") || e.name.endsWith(".py")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function allDocs() {
+  const docs = [path.join(SKILL_DIR, "SKILL.md")];
+  docs.push(...walk(path.join(SKILL_DIR, "references")));
+  docs.push(...walk(path.join(SKILL_DIR, "scripts")));
+  return docs.filter((f) => fs.existsSync(f));
+}
+
+const rel = (p) => path.relative(SKILL_DIR, p).split(path.sep).join("/");
+
+// ── 闸 1：引用断链 ──────────────────────────────────────────────────
+const REF_RE =
+  /(?:references|scripts)\/[A-Za-z0-9_\u4e00-\u9fff\-/]+\.(?:md|py|js)/g;
+
+function checkBrokenRefs(docs) {
+  const broken = new Map();
+  for (const d of docs) {
+    if (!d.endsWith(".md")) continue;
+    for (const m of readText(d).matchAll(REF_RE)) {
+      const target = m[0];
+      if (!fs.existsSync(path.join(SKILL_DIR, target))) {
+        if (!broken.has(target)) broken.set(target, new Set());
+        broken.get(target).add(rel(d));
+      }
+    }
+  }
+  return broken;
+}
+
+// ── 闸 2：负向声明 ──────────────────────────────────────────────────
+function checkNegative(docs) {
+  const hits = [];
+  for (const d of docs) {
+    if (NEGATIVE_EXEMPT.has(path.basename(d))) continue;
+    readText(d)
+      .split(/\r?\n/)
+      .forEach((line, i) => {
+        for (const w of NEGATIVE_WORDS) {
+          if (line.includes(w)) {
+            hits.push({ file: rel(d), line: i + 1, word: w, text: line.trim().slice(0, 70) });
+          }
+        }
+      });
+  }
+  return hits;
+}
+
+// ── 闸 3：字体白名单 ────────────────────────────────────────────────
+const FONT_RE = /(?:font|set_font\(\s*font)\s*[=:]\s*["']([^"']+)["']/g;
+// 行级豁免：文档里**以反例形式**引用违规字体名是必要的（教人别写），
+// 在该行末尾加 `audit:allow-font` 即可豁免，但豁免本身会被打印出来，保证不会被滥用。
+const ALLOW_FONT_FLAG = "<!--allow-font-->";
+
+function checkFonts(docs) {
+  const bad = [];
+  for (const d of docs) {
+    if (!(d.endsWith(".py") || d.endsWith(".md"))) continue;
+    readText(d)
+      .split(/\r?\n/)
+      .forEach((line, i) => {
+        const exempt = line.includes(ALLOW_FONT_FLAG);
+        for (const m of line.matchAll(FONT_RE)) {
+          if (!FONT_ALLOW.has(m[1])) {
+            bad.push({ file: rel(d), line: i + 1, font: m[1], exempt });
+          }
+        }
+      });
+  }
+  return bad;
+}
+
+// ── 闸 4：体量红线 ──────────────────────────────────────────────────
+function checkSize(docs) {
+  const red = [];
+  const rows = [];
+  for (const d of docs) {
+    const text = readText(d);
+    const r = rel(d);
+    rows.push({ file: r, chars: text.length, tok: estTokens(text) });
+
+    if (r === "SKILL.md") {
+      const t = estTokens(text);
+      if (t > BUDGET.skillTok) red.push({ what: "SKILL.md 超红线", detail: `${t} > ${BUDGET.skillTok} tok` });
+    } else if (r.endsWith(".md") && r.includes("incidents")) {
+      if (text.length > BUDGET.incidentChars)
+        red.push({ what: r, detail: `${text.length} > ${BUDGET.incidentChars} 字符` });
+    } else if (r.startsWith("references/") && r.endsWith(".md")) {
+      if (text.length > BUDGET.refChars)
+        red.push({ what: r, detail: `${text.length} > ${BUDGET.refChars} 字符` });
+    }
+  }
+  return { red, rows };
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  const docs = allDocs();
+  const red = [];
+
+  const broken = checkBrokenRefs(docs);
+  if (broken.size) red.push("引用断链");
+
+  const neg = checkNegative(docs);
+  if (neg.length) red.push("负向声明");
+
+  const badFont = checkFonts(docs);
+  const fontRed = badFont.filter((h) => !h.exempt);
+  if (fontRed.length) red.push("字体白名单");
+
+  const { red: sizeRed, rows } = checkSize(docs);
+  red.push(...sizeRed.map((r) => r.what));
+
+  const skillTok = rows.find((r) => r.file === "SKILL.md")?.tok ?? 0;
+
+  console.log("\x1b[36m══ skill_audit：自进化门禁 ══\x1b[0m");
+  console.log(`技能目录：${SKILL_DIR}`);
+  console.log(
+    `\n体量：SKILL.md ${skillTok} tok / 上限 ${BUDGET.skillTok}` +
+      (argv.includes("--top") ? "\n单篇文档（超「整篇读」阈值会标 ⚠️）：" : ""),
+  );
+  for (const r of rows.filter((x) => x.file.endsWith(".md") && x.file !== "SKILL.md")) {
+    const mark = r.chars > GREP_FIRST_CHARS ? "  ⚠️ 建议标注「先 Grep 局部读」" : "";
+    console.log(`  ${String(r.chars).padStart(6)} 字符  ${r.file}${mark}`);
+  }
+
+  console.log(`\n[引用断链] ${broken.size ? `❌ ${broken.size} 处` : "✅ 无"}`);
+  for (const [target, srcs] of broken) {
+    console.log(`  ❌ ${[...srcs].join(", ")} 引用了不存在的 ${target}`);
+  }
+
+  console.log(`[负向声明] ${neg.length ? `❌ ${neg.length} 处` : "✅ 全库无痕迹"}`);
+  for (const h of neg.slice(0, 15)) console.log(`  ❌ ${h.file}:${h.line}  [${h.word}] ${h.text}`);
+
+  console.log(
+    `[字体白名单] ${fontRed.length ? `❌ ${fontRed.length} 处` : `✅ 全部合规${badFont.length ? `（${badFont.length} 处反例引用已豁免）` : ""}`}`,
+  );
+  for (const h of badFont.slice(0, 15)) {
+    console.log(`  ${h.exempt ? "➖" : "❌"} ${h.file}:${h.line}  font="${h.font}"${h.exempt ? "  (反例引用，已豁免)" : ""}`);
+  }
+
+  console.log(`[体量红线] ${sizeRed.length ? `❌ ${sizeRed.length} 处` : "✅ 全部达标"}`);
+  for (const r of sizeRed) console.log(`  ❌ ${r.what}  ${r.detail}`);
+
+  if (argv.includes("--top")) {
+    console.log("\n体量 TOP 8：");
+    for (const r of [...rows].sort((a, b) => b.chars - a.chars).slice(0, 8)) {
+      console.log(`  ${String(r.chars).padStart(6)}  ${r.file}`);
+    }
+  }
+
+  if (argv.includes("--save")) {
+    fs.appendFileSync(
+      HISTORY_FILE,
+      JSON.stringify({ ts: new Date().toISOString(), skillTok, docs: rows.length, red: red.length }) + "\n",
+    );
+    console.log(`\n已记历史 → scripts/${path.basename(HISTORY_FILE)}`);
+  }
+
+  if (argv.includes("--json")) {
+    console.log(
+      JSON.stringify(
+        { ok: red.length === 0, red, broken: [...broken.keys()], negative: neg, badFont, sizeRed },
+        null,
+        2,
+      ),
+    );
+  }
+
+  if (red.length) {
+    console.log(`\n\x1b[31m🚫 ${red.length} 项红灯，先修再提交（node push.js 会拒绝推送）\x1b[0m`);
+    process.exit(1);
+  }
+  console.log("\n\x1b[32m✅ 全绿\x1b[0m");
+  process.exit(0);
+}
+
+main();
