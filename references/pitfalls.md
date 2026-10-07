@@ -78,7 +78,7 @@ Get-ChildItem "D:\github\math-animation-mcp\_render_tmp" -Directory |
 | `MathTex` 默认是**白色**，白底风格下看不见，只剩手动上色的部分 | 先 `formula.set_color(INK)` 整组压深色，再给需要强调的子串单独上色 |
 | 白底风格下坐标轴/网格/文字用 Manim 默认白色 | 每个 `Text`/`MathTex`/`Axes`/`NumberPlane` 都显式给颜色；网格用 `#E4E7EE`，轴用 `#7B8794` |
 | 中文显示成方框 | `Text(..., font="Noto Sans SC")` 显式指定，或依赖启动器注入的 `LXGW WenKai GB` |
-| **`\mathrm{}` / `\text{}` 里塞中文，或用 `Title()`，导致 LaTeX 编译失败** | 本机 LaTeX **没装 ctex 中文支持**，报 `latex error converting to dvi` ⇒ **一张图都不产出**。中文标题/词组一律 `Text(..., font=FONT)`，公式用纯英文 `MathTex`。本机实测：`Text`（中/英）、纯英文 `MathTex` 均正常，只有 `Title()` 和 `\text{中文}` 会炸 |
+| **`Title()` / `\text{中文}` 报 `latex error converting to dvi` ⇒ 零产物** | **不是缺 ctex**（已装），是默认模板不加载它。**走 MCP / `render_video.py` 已自动注入，中文可直接用**；**直跑 `manim` / `probe_charts.py` 必须自己加 `config.tex_template = TexTemplateLibrary.ctex`**。详见 `SKILL.md` §六 |
 | 暗底上次要文字用色太暗，看不清 | 页脚/次要文字别低于 `#8296B4` |
 | 公式字号写太大，贴到右边缘被裁掉 | 字号 ≤ 28，放画面中下方居中，不横排太长 |
 | **字体名写错会静默回退，渲染照常成功但字体不是你要的那个** | 见下方「字体名必须精确匹配」，渲染日志里搜 `falling back` 必查 |

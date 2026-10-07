@@ -171,7 +171,7 @@ self.add(board)
 | 文字溢出画布被裁 | `fit_board()` + 打印 board 尺寸，**不要目测估中文宽度** |
 | 竖排文字/多行卖点在卡片里堆到原点 | `in_card(cx, cy, [(m, dx, dy)])` 相对摆位，或 `arrange` **后**按 `get_center()` 重算 |
 | `MathTex` 在白底上看不见（纯白） | `set_color(INK)`；次要公式用 `GRAY` |
-| **中文标题别用 `Title` / `MathTex(r"\text{中文}")`——直接 LaTeX 报错** | 这俩都走 LaTeX 模板，而本机 LaTeX **没装 ctex 中文支持**：`latex error converting to dvi` ⇒ **一张图都不产出**。中文标题一律用 `Text(..., font=FONT)`，公式用纯英文 `MathTex`。本机实测：`Text`（中/英）与纯英文 `MathTex` 均正常出图，只有 `Title` 和 `\text{中文}` 会炸 |
+| **中文标题别裸用 `Title` / `MathTex(r"\text{中文}")`——直跑 manim 会报 LaTeX 错** | 走 MCP / `render_video.py` 时 MCP 已注入 ctex 模板，中文 `Title` 可直接用；**直跑 `manim` / `probe_charts.py` 必须在 `from manim import *` 后加 `config.tex_template = TexTemplateLibrary.ctex`**，否则 `latex error converting to dvi` ⇒ 零产物。不用 LaTeX 排版就退回 `Text(..., font=FONT)`。详见 `SKILL.md` §六 LaTeX 行 |
 | 公式撑出卡片 | 窄卡（宽 2 单位）公式字号 **20~24**，并预留卡片内边距 |
 | 中文静默回退成默认字体 | 日志 grep `falling back`，必须为 0；字体名精确到 `Noto Sans SC` |
 | `Line`/`Arrow` 端点写二维会崩 | 必须 `[x, y, 0]` |
