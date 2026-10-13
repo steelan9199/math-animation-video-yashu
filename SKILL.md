@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 生成公众号封面图/头图、教学动画视频(MP4)、流程图/架构图/甘特图/鱼骨图等图表。典型触发表达包括:`生成公众号封面`、`做公众号封面图`、`公众号头图`、`生成数学动画`、`把公式做成动画`、`画流程图`、`画架构图`；画图、排版封面、公式可视化均命中。
-version: 1.9.0
+version: 1.10.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -168,7 +168,8 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 | **`references/chart-generation.md`** | **要任何图表/信息图时必读**。标准流程 + 三层安全区 + `charts_lib` + 各类图表实现要点（清单见其 §六 各类图表的关键实现要点） |
 | **`references/chart-pitfalls.md`** | 图表路线踩过的坑（坑 1~15）。排查时按需查 |
 | **`references/wechat-cover.md`** | **要封面/头图时必读**。尺寸规格、渲染命令、防裁切、封面专属坑、自检清单 ⚠️ |
-| **`references/wechat-cover-layouts.md`** | 封面版式的可复制代码：左文右图（含**清单/横评卡**变体）/ 单卡居中（金句卡、要点卡） |
+| **`references/wechat-cover-layouts.md`** | 封面版式的可复制代码：左文右图（**图卡**变体）/ 单卡居中（金句卡、要点卡） |
+| **`references/wechat-cover-cards.md`** | **右卡换成清单 / 横评 / 编号列表时读**。卡内左右安全线 `IL`/`IR`、列右对齐、列宽上限 ⚠️ |
 | **`references/manim-api-troubleshooting.md`** | **写拿不准的 API 之前**。30 秒自查法 + 本机源码位置 + 0.21.0 实测结论。**不要凭记忆写 Manim API** |
 | **`references/incidents/mandelbulb-postmortem.md`** | 点云/分形场景前，或怀疑自己会"卡住干等"时。27 分钟空转事故链 |
 

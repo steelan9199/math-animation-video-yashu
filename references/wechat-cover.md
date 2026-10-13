@@ -9,9 +9,10 @@
 |---|---|
 | **公式 / 函数图像 / 柱状折线图 / 几何图形 / 三维结构** | 左文右图版式，右侧图卡放公式与图表 |
 | **纯文字排版 / 金句卡 / 要点卡** | 单卡居中版式：大字主标 + 细分割线 + 底部落款，靠 `fit_board` 兜底缩放 |
+| **右卡换成清单 / 横评 / 编号列表** | `wechat-cover-cards.md` 的两套变体（卡内左右安全线 `IL`/`IR` + 列对齐规则） |
 | **人物 / 场景插画** | 用几何图元拼装示意性图形；**照片级 / 手绘级插画做不了**，直接说明限制，不要硬凑 |
 
-> **两套版式的可复制代码都在 `references/wechat-cover-layouts.md`**，本篇只讲路线与坑。
+> **两套版式的可复制代码都在 `references/wechat-cover-layouts.md`，右卡变体在 `references/wechat-cover-cards.md`**，本篇只讲路线与坑。
 
 ---
 
@@ -189,6 +190,17 @@ print(f"[cover] gap {win.get_left()[0] - left.get_right()[0]:.2f}")
 左列内部仍按 §六 末行用 `next_to(..., aligned_edge=LEFT)` 串，换文案只会让左列变高变宽，
 **横向越界由 `scale_to_fit_width` 兜、纵向由 `left.height` 那条兜**。
 
+**方案 D（卡内元素戳出卡片时怎么定位）**：`fit_board` 与 `gap` **都看不见它**——
+两者算的都是整体 bbox，「卡内元素越过卡片右边界」不在视野里（实测 `gap` +2.08、
+`board` 也在安全区内，图照样穿帮）。逐个打印子元素 bbox，一次就能点名是谁：
+
+```python
+for s in win.submobjects:
+    print(f"   win-sub x[{s.get_left()[0]:.2f},{s.get_right()[0]:.2f}]")
+```
+
+拿这行和卡片自身的 `get_left()/get_right()` 对比，超出者就是元凶。
+
 **垂直位置最后统一调**，不要每轮重排：内容全部 `add` 完之后
 
 ```python
@@ -212,7 +224,8 @@ self.add(board)
 | `Line`/`Arrow` 端点写二维会崩 | 必须 `[x, y, 0]` |
 | 用了 `render_video.py` | 它的 `--format` 不接受 `png`（argparse 拒掉），且会注入风格底色。**这是入口限制，不是引擎限制**——封面直接 `python -m manim render` |
 | 卡片数量多导致画面碎 | **最多 3 张卡**，封面要一眼看完 |
-| **右卡内列值过长，戳出卡片右边界** | 给每列设宽度上限 `COLW`，超了 `scale_to_fit_width(COLW)`。**`fit_board` 对此不触发**（它只算左右两大块的整体 bbox，卡内"值越过 `IR`"不在视野里），只能靠目检 |
+| **右卡内列值过长，戳出卡片右边界** | 给每列设宽度上限 `COLW`，超了 `scale_to_fit_width(COLW)`。**`fit_board` 对此不触发**（它只算左右两大块的整体 bbox，卡内"值越过 `IR`"不在视野里），只能靠 §五 方案 D 打印子元素 bbox 点名 |
+| **`next_to(点, …, aligned_edge=LEFT)` 里 `aligned_edge` 被静默忽略** | **第一个参数是点（`win.get_top()+DOWN*0.34`）时，`aligned_edge` 只在参数是 Mobject 时才被读取**——传点等于传了个"没有边"的参照，对齐意图丢失，元素直接以参照点 x 为中心。实测同一元素四种写法：点+`aligned_edge=LEFT` 与「不传 `aligned_edge`」结果完全相同（都以参照点 x 为中心，右侧溢出卡片 0.06），而传 `win` 本身才真的左对齐。**卡内要按固定安全线定位就用 `move_to([MCX, y, 0])`**（`MCX` = 卡内左右安全线中点），别指望 `next_to` 的 `aligned_edge` 兜 |
 | **想右对齐却写了 `next_to(pt, RIGHT)`** | `next_to` 第二参是"放到参照点哪一侧"：右对齐要用 **`LEFT`**。写 `RIGHT` 会把左边缘贴上去、整段往右溢出 |
 | **圆角窗体上叠方形标题栏，角戳出圆角外沿** | 三层叠法：`shell`(圆角浅底) + `body`(白色方块盖下半) + `outline`(圆角只描边) |
 | 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调。**卡下方挂了 caption 等非对称元素时改用 `board.move_to([0,0,0])`**——`shift` 偏移量是在对称版面上量的 |
