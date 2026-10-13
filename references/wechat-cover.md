@@ -115,6 +115,10 @@ Select-String -Path _cover_render.log -Pattern 'falling back','Error','Traceback
 - 无输出 = 干净。`falling back` = 字体没找到、静默回退成默认字体 → 中文会变成非预期字形，**必须为 0**。
 - `Error` / `Traceback` = 代码错。
 
+> ⚠️ **场景里的 `print` 不会出现在 `render_cover.py` 的终端输出里**：它把 manim 的 stdout
+> 转存到**运行目录下的 `_cover_render.log`**，自己只回显 `[cover]` 抬头行与 WARN/FAIL。
+> 要看自检行就去那个文件里查（如 `gap`、`board` 尺寸）；**直跑本章第一条 `manim` 命令**时才直接打在屏幕上。
+
 ## 四、画面比例：必须重设 frame（最大的坑）
 
 Manim 默认 `frame_width = 14.222`、`frame_height = 8`，是 16:9。**直接用它渲染 2.35:1 的图，
@@ -153,6 +157,31 @@ print(f"[cover] board {board.width:.2f}x{board.height:.2f} / "
 ```
 
 `board.width > frame_width` ⇒ 一定会被裁，先改字号/文案再往下走。
+
+**方案 C（左文右图必做：两块各自定位，别指望 `fit_board` 兜内部重叠）**
+
+`fit_board` 算的是**整体 bbox**——两块互相压字时整体 bbox 根本不会超，它一次都不触发。
+实测：左列主标 `font_size=60` 约宽 5.35 单位，右卡左边界若只给到 0.6，
+**标题端头被卡片压掉**；此时退出码 0、日志干净、`fit_board` 无动作，**只有看图才发现**。
+
+做法是给两块**各设宽度上限、各自贴安全线**，并在结尾打印实际间距：
+
+```python
+FW, FH = config.frame_width, config.frame_height
+M = 0.52                          # 四边安全留白
+LW, CW = 5.72, 6.60               # 左列宽度上限 / 右卡宽度
+if left.width > LW:
+    left.scale_to_fit_width(LW)   # 超宽整体缩，不要只改标题字号
+if left.height > FH - 2 * M:
+    left.scale_to_fit_height(FH - 2 * M)
+left.move_to([-FW / 2 + M + left.width / 2, 0, 0])   # 左边界贴安全线
+win.move_to([FW / 2 - M - CW / 2, CY, 0])            # 右卡右边界贴安全线；CY 为右卡纵向中心
+print(f"[cover] gap {win.get_left()[0] - left.get_right()[0]:.2f}")
+```
+
+**`gap` 打印出负数 = 已经压上了**，比出图后再看快。实测两块间距需留到 **0.85 单位**左右才不挤。
+左列内部仍按 §六 末行用 `next_to(..., aligned_edge=LEFT)` 串，换文案只会让左列变高变宽，
+**横向越界由 `scale_to_fit_width` 兜、纵向由 `left.height` 那条兜**。
 
 **垂直位置最后统一调**，不要每轮重排：内容全部 `add` 完之后
 
