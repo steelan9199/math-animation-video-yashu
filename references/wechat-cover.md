@@ -231,6 +231,7 @@ self.add(board)
 | 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调。**卡下方挂了 caption 等非对称元素时改用 `board.move_to([0,0,0])`**——`shift` 偏移量是在对称版面上量的 |
 | **`arrange(aligned_edge=CENTER)` 报 `NameError: CENTER`** | 0.21.0 **没有 `CENTER` 常量**（只有 `UP/DOWN/LEFT/RIGHT/ORIGIN`）。居中用 `arrange(DOWN, buff=0.3, center=True)`——`arrange` 有 `center: bool` 参数 |
 | **手填 `move_to` 坐标排版，换文案就重叠/被裁** | 一律用 `next_to(参照物, 方向, buff=…)` 按**实际边界**串版面；最后 `board.move_to([0,0,0])` 垂直居中。金句卡模板见 `wechat-cover-layouts.md` |
+| **`set_x` / `set_y` 拿来做对齐 ⇒ 整组版面被推歪** | `set_x` 设的是**中心**不是边界：左贴安全线要 `align_to([x,0], LEFT)`。实测不报错、`gap`/`fit_board` 全都"正常"、看图还像故意的缩进，只有量像素才看得见。事故链 + 像素自检法见 `wechat-cover-layouts.md` 末尾「两个静默坑」 |
 
 ## 七、自检清单（渲染后必须亲眼看图）
 
@@ -243,6 +244,8 @@ PNG 是静态图，**不需要抽帧拼图**，直接用读图工具打开成品
 5. 卡片底部标签都在卡内、同一条基线
 6. 竖排层次：标签 → 主标题 → 副标 → 卖点，视觉顺序一眼能读
 7. 配色克制：白底 + 1 主色 + 1 强调色，最多再加 1 个辅助色
+8. **四边留白与左边界用像素量，不要靠屏幕上目测**（读图工具会缩放，实测差 3 倍）：
+   PIL 量非白 bbox ⇒ 左右/上下应≈66 px 且相等；再看左区各行最左 x 是否一致。代码见 `wechat-cover-layouts.md` 末尾
 
 发现问题 → 改代码 → 重渲染。封面单帧端到端约 **3 秒**，
 实测一次三轮迭代很正常，**不要因为"多跑一轮"就省掉目检**。

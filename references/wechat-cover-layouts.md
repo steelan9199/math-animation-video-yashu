@@ -150,6 +150,12 @@ class MyCover(Scene):            # 类名必须 ASCII
 `DashedLine` 均值参考线、`MathTex` 公式、`Dot` 端点高亮。图卡标签统一放在卡片底部
 `CY - 1.22` 左右，字号 23、灰色 `GRAY`。
 
+**比例网格图元**（表达「N 选 1 / 筛掉多少」）：`RoundedRectangle` 平铺成 5×2 网格，
+落选格浅底 `#EEF1F7` + 描边（**描边 ≥1.8**，1.4 在列表页缩略图上几乎糊掉），选中格**实心主色**打对勾。
+实测格边长 0.74、列间距 0.18 → 5 列宽 4.42 单位，卡内安全宽 4.88，留得住。
+对勾可直接 `Text("✓", font=FONT, color=BG)`：用 fontTools 查过两份白名单字体的 cmap，
+**U+2713（✓）/ U+2192（→）/ U+2190（←）全都在**，不会缺字，不必手画两条 `Line`。
+
 ### 右卡换成清单 / 横评 / 编号列表？
 
 **看 `wechat-cover-cards.md`**——那三套右卡变体（仿浏览器横评卡、编号清单卡）
@@ -211,4 +217,50 @@ class QuoteCover(Scene):            # 类名必须 ASCII
 左列（版式一）是纵向最挤的一块：**标签 22 + 双行主标 58 + 副标 24 + 分割线 + 双行落款 22，
 实测占 4.48 单位**，而安全高只有 5.05（`M=0.5`）——再多塞一行卖点就顶边。
 左列超安全高时按 `left.height` 整体缩，**不要逐条改字号**（见 `wechat-cover.md` §五 防裁切 方案 C）。
+
+---
+
+## ⚠️ 手写版面的两个静默坑（已连续两次踩中，实测）
+
+### 1. `set_x(x)` / `set_y(y)` 设的是**中心**，不是边界
+
+"把分割线左端贴到左安全线"写 `rule.set_x(LX)`，整组版面就被推歪。实测（`Line([0,0,0],[4,0,0])`）：
+
+| 写法 | 实测 left / right |
+|---|---|
+| `l.set_x(-2)` | `-4.00 / 0.00` ← **中心**落在 -2，左端跑到 -4 |
+| `l.align_to([-2,0], LEFT)` | `-2.00 / 2.00` ✅ |
+
+**事故链**：`rule.set_x(LX)` 让分割线中心落在 `LX`，其左端伸到 `LX - sub.width/2`；
+随后 `left.align_to([LX,0], LEFT)` 按**整组 bbox** 把全部元素右移 `sub.width/2`
+（实测 **2.34 单位 ≈ 296 px**）——结果是**分割线和落款贴住左边距，而标签/主标/副标缩进 2.3 单位**。
+退出码 0、`gap` 打印 +0.88 "正常"、`fit_board` 不触发、看图还像"故意做的小缩进"，**只有量像素才看得见**。
+`ai_self_edit_cover_scene.py`（上一版封面）与本次封面都中招。
+
+**左对齐一律 `align_to([x, 0], LEFT)`**（或 `move_to` 到算好的坐标），别用 `set_x/set_y` 做对齐。
+
+### 2. 交付前用像素量 bbox，不要靠屏幕目测
+
+本机读图工具会把 1800 px 宽的封面**缩放显示**（约 ×0.6），照屏幕数像素必错
+（本次目测"左边距 ≈ 200 px"，实测 **69 px**，差点按错的数去改版面）。
+
+```python
+from PIL import Image; import numpy as np
+a = np.array(Image.open(PNG).convert("RGB")).astype(int); nw = a.sum(2) < 730
+xs = np.where(nw.any(0))[0]; ys = np.where(nw.any(1))[0]
+print("留白 左%d 右%d 上%d 下%d" % (xs.min(), a.shape[1]-1-xs.max(), ys.min(), a.shape[0]-1-ys.max()))
+```
+
+2.35:1 @1800 宽下，§五 的 `M=0.52` 对应 **≈66 px**，四边应近似相等。
+**关键第二步：看左区各行最左非白 x 是否一致**——不一致就是某个元素没贴住左边距（坑 1 就是这样抓出来的）：
+
+```python
+prof = {}
+for y in range(a.shape[0]):
+    c = np.where(nw[y][:900])[0]          # 只扫左区
+    if len(c): prof.setdefault(c.min()//20*20, []).append(y)
+for k in sorted(prof): print("左边界≈%4dpx  y[%d,%d]" % (k, min(prof[k]), max(prof[k])))
+```
+
+修好后这张封面实测：留白左 69 / 右 69 / 上 80 / 下 80 px，左区所有行左边界都落在 60~80 px 一档。
 
