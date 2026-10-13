@@ -98,6 +98,12 @@ manim 按场景文件哈希判断是否需要重渲染。**场景文件没改动
    只发现旧产物时会明确报错，不会静默交付旧图。**这是唯一零风险的做法。**
 2. **改了场景代码后再跑**（加个空行都能解除缓存）。
 3. **换一个新的 `--media_dir` 目录名**（`_cover_media_r1`、`_r2`…），旧目录留着不影响交付。
+   `render_cover.py` 已封装为 **`--media-dir` 参数**，直接传即可——
+   ```powershell
+   & $P "<技能目录>\scripts\render_cover.py" <scene.py> <ClassName> `
+     --res 1800x766 --media-dir "<工作目录>/_cover_media_r3" --out "封面.png"
+   ```
+   封面迭代往往要改三轮文案/字号，**每轮换一个新目录名**比改文件破缓存更省心。
 
 > ⚠️ **不要用删除来破缓存**（`rm -rf <media_dir>` 或删 `images/<模块名>/`）：
 > 本机批量删除钩子会给非零退出码，还可能连带删掉同批次的其它产物。
@@ -206,7 +212,10 @@ self.add(board)
 | `Line`/`Arrow` 端点写二维会崩 | 必须 `[x, y, 0]` |
 | 用了 `render_video.py` | 它的 `--format` 不接受 `png`（argparse 拒掉），且会注入风格底色。**这是入口限制，不是引擎限制**——封面直接 `python -m manim render` |
 | 卡片数量多导致画面碎 | **最多 3 张卡**，封面要一眼看完 |
-| 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调 |
+| **右卡内列值过长，戳出卡片右边界** | 给每列设宽度上限 `COLW`，超了 `scale_to_fit_width(COLW)`。**`fit_board` 对此不触发**（它只算左右两大块的整体 bbox，卡内"值越过 `IR`"不在视野里），只能靠目检 |
+| **想右对齐却写了 `next_to(pt, RIGHT)`** | `next_to` 第二参是"放到参照点哪一侧"：右对齐要用 **`LEFT`**。写 `RIGHT` 会把左边缘贴上去、整段往右溢出 |
+| **圆角窗体上叠方形标题栏，角戳出圆角外沿** | 三层叠法：`shell`(圆角浅底) + `body`(白色方块盖下半) + `outline`(圆角只描边) |
+| 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调。**卡下方挂了 caption 等非对称元素时改用 `board.move_to([0,0,0])`**——`shift` 偏移量是在对称版面上量的 |
 | **`arrange(aligned_edge=CENTER)` 报 `NameError: CENTER`** | 0.21.0 **没有 `CENTER` 常量**（只有 `UP/DOWN/LEFT/RIGHT/ORIGIN`）。居中用 `arrange(DOWN, buff=0.3, center=True)`——`arrange` 有 `center: bool` 参数 |
 | **手填 `move_to` 坐标排版，换文案就重叠/被裁** | 一律用 `next_to(参照物, 方向, buff=…)` 按**实际边界**串版面；最后 `board.move_to([0,0,0])` 垂直居中。金句卡模板见 `wechat-cover-layouts.md` |
 

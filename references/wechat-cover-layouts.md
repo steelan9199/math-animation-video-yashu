@@ -152,14 +152,59 @@ class MyCover(Scene):            # 类名必须 ASCII
 ### 版式一变体：右卡换成「清单 / 横评卡」
 
 工具横评、Top N 类文章用得上：右卡做成仿浏览器窗口（交通灯 + 地址栏 + 分隔线），卡内若干行清单。
-实测参数（卡 6.6×4.12，5 行）：
 
-- 行高 `dy=0.62`，行底 `RoundedRectangle(w=CW-0.56, h=0.54, r=0.10)` 做斑马纹（隔行 `#F7F9FD`，首行可用浅主色 `#EAF1FE` 突出文中的结论项）；
-- 左端 `0.20` 小色块标分类；名称 20 号（`aligned_edge=LEFT` 对齐到 `IL+0.44`），厂商 14 号灰色 `next_to(nm, RIGHT, buff=0.14)`；
-- **右侧数值列全部右对齐到同一个 `IR`**，小图标放在 `IR-0.78`（贴太近会和数值挤在一起）；
-- 卡下留一行 caption，15 号 `AXC` 灰字注明数据口径与时间。
+⚠️ **圆角窗体不能靠「在圆角矩形上叠一个方形标题栏」来做**——方形矩形的角会戳出圆角外沿，
+`CW` 一大（≥6）就肉眼可见。正确三层叠法（实测无穿帮）：
+
+```python
+shell = RoundedRectangle(width=CW, height=CH, corner_radius=0.20)  # 浅底，带圆角
+body  = Rectangle(width=CW, height=CH - bar_h, stroke_width=0)      # 白底方块，盖掉下半
+outline = RoundedRectangle(width=CW, height=CH, corner_radius=0.20) # 透明填充，只描边压顶
+win = VGroup(shell, body, outline)      # 之后所有卡内元素 win.add(...) 即可
+```
+
+实测参数（卡 6.45×4.26，5 行）：
+
+- 行高 `dy=0.56`，行底 `RoundedRectangle(w=CW-0.60, h=0.46, r=0.09)` 做斑马纹（隔行 `#F7F9FD`，末行可用浅主色 `#EAF1FE` 突出文中的结论项）；
+- 左端 `0.12` 小色块标分类；名称 19 号 `move_to([IL+0.42, y, 0], aligned_edge=LEFT)`，两列数值 15 号；
+- **两列数值分别右对齐到两条固定线** `CM`（WorkBuddy 列）与 `IR`（Trae 列），
+  表头同名对齐同一条线；
+- 卡下留一行 caption，16 号 `AXC` 灰字注明数据口径。
 
 行内别在两处写同一信息（如厂商列写"浏览器本体"、右侧又写一遍）。
+
+#### ⚠️ 右对齐用 `next_to(pt, LEFT)`，不是 `RIGHT`
+
+`next_to` 的第二个参数是**「把对象放到参照点的哪一侧」**，不是「对齐方式」。
+`a.next_to(p, RIGHT)` 把 `a` 的**左边缘**贴到 `p`，整段文字往右长——想右对齐反而会冲出卡片。
+
+```python
+a.next_to([CM - 0.14, y, 0], LEFT, buff=0.0)   # ✅ 右边缘贴 CM-0.14
+a.next_to([CM - 0.14, y, 0], RIGHT, buff=0.0)  # ❌ 左边缘贴 CM-0.14，往右溢出
+```
+
+本轮就是先写 `RIGHT` 出了图才发现 Trae 列（`PureShowWidget` 等）整列戳出卡片右边界才返工。
+
+#### ⚠️ 列值过长也要有宽度上限
+
+右侧值是工具名时长度不可控（`PureShowWidget` vs `Read` 差 4 倍）。**不设上限，
+最长那条必然压出卡片**；而 `fit_board` 对此**一次都不触发**——它算的是左右两大块的
+整体 bbox，右卡内部"列值越过 `IR` 伸出卡片"根本不在它的视野里（实测 `gap` 打印 +1.82、
+board 也在安全区内，图照样穿帮）。
+
+```python
+COLW = 1.92                        # 单列宽度上限
+b = Text(v2, font=FONT, font_size=15, color=BLUE)
+if b.width > COLW:
+    b.scale_to_fit_width(COLW)     # 超宽整体缩，不要只调字号（会与相邻列不同基线）
+b.next_to([IR, y, 0], LEFT, buff=0.0)
+```
+
+#### 垂直居中用 `move_to([0,0,0])` 而非 `shift(DOWN * x)`
+
+卡下方挂了 caption 时整体 bbox 上下不对称（实测上留白 91px / 下留白 41px），
+`shift(DOWN * 0.30)` 这类经验偏移是在**对称版面**上量出来的，照搬反而更歪。
+内容非对称时直接 `board.move_to([0, 0, 0])` 按真实 bbox 居中。
 
 ## 版式二：纯文字 / 金句卡 / 要点卡（单卡居中）
 
