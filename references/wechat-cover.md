@@ -214,24 +214,24 @@ self.add(board)
 
 | 坑 | 正确做法 |
 |---|---|
-| 忘了改 `frame_height`，画面比例错 | 模块顶层锁 `config.frame_height = frame_width * H / W`（1:1 时 H/W=1，见 §四 的两行对照） |
+| 忘了改 `frame_height`，比例错 | 模块顶层锁 `config.frame_height = frame_width * H / W`（1:1 见 §四 两行对照） |
 | 文字溢出画布被裁 | `fit_board()` + 打印 board 尺寸，**不要目测估中文宽度** |
 | 竖排文字/多行卖点在卡片里堆到原点 | `in_card(cx, cy, [(m, dx, dy)])` 相对摆位，或 `arrange` **后**按 `get_center()` 重算 |
 | `MathTex` 在白底上看不见（纯白） | `set_color(INK)`；次要公式用 `GRAY` |
-| **中文标题别裸用 `Title` / `MathTex(r"\text{中文}")`——直跑 manim 会报 LaTeX 错** | 走 MCP / `render_video.py` 时 MCP 已注入 ctex 模板，中文 `Title` 可直接用；**直跑 `manim` / `probe_charts.py` 必须在 `from manim import *` 后加 `config.tex_template = TexTemplateLibrary.ctex`**，否则 `latex error converting to dvi` ⇒ 零产物。不用 LaTeX 排版就退回 `Text(..., font=FONT)`。详见 `SKILL.md` §六 LaTeX 行 |
+| **中文标题别裸用 `Title` / `MathTex(r"\text{中文}")`——直跑 manim 会报 LaTeX 错** | 直跑 `manim` / `probe_charts.py` 必须先加 `config.tex_template = TexTemplateLibrary.ctex`，否则 `latex error converting to dvi` ⇒ 零产物；不用 LaTeX 就退回 `Text(..., font=FONT)`。详见 `SKILL.md` §六 LaTeX 行（走 MCP 时已自动注入，中文 `Title` 可直接用） |
 | 公式撑出卡片 | 窄卡（宽 2 单位）公式字号 **20~24**，并预留卡片内边距 |
 | 中文静默回退成默认字体 | 日志 grep `falling back`，必须为 0；字体名精确到 `Noto Sans SC` |
 | `Line`/`Arrow` 端点写二维会崩 | 必须 `[x, y, 0]` |
 | 用了 `render_video.py` | 它的 `--format` 不接受 `png`（argparse 拒掉），且会注入风格底色。**这是入口限制，不是引擎限制**——封面直接 `python -m manim render` |
-| 卡片数量多导致画面碎 | **最多 3 张卡**，封面要一眼看完 |
-| **右卡内列值过长，戳出卡片右边界** | 给每列设宽度上限 `COLW`，超了 `scale_to_fit_width(COLW)`。**`fit_board` 对此不触发**（它只算左右两大块的整体 bbox，卡内"值越过 `IR`"不在视野里），只能靠 §五 方案 D 打印子元素 bbox 点名 |
+| 卡多画面碎 | **最多 3 张卡**，要一眼看完 |
+| **右卡内列值过长戳出卡片** | 给每列设宽度上限 `COLW`，超了 `scale_to_fit_width(COLW)`。**`fit_board` 对此不触发**（它只算左右两大块整体 bbox，卡内越界不在视野里），只能靠 §五 方案 D 打印子元素 bbox 点名 |
 | **`next_to(点, …, aligned_edge=LEFT)` 里 `aligned_edge` 被静默忽略** | **第一个参数是点（`win.get_top()+DOWN*0.34`）时，`aligned_edge` 只在参数是 Mobject 时才被读取**——传点等于传了个"没有边"的参照，对齐意图丢失，元素直接以参照点 x 为中心。实测同一元素四种写法：点+`aligned_edge=LEFT` 与「不传 `aligned_edge`」结果完全相同（都以参照点 x 为中心，右侧溢出卡片 0.06），而传 `win` 本身才真的左对齐。**卡内要按固定安全线定位就用 `move_to([MCX, y, 0])`**（`MCX` = 卡内左右安全线中点），别指望 `next_to` 的 `aligned_edge` 兜 |
 | **想右对齐却写了 `next_to(pt, RIGHT)`** | `next_to` 第二参是"放到参照点哪一侧"：右对齐要用 **`LEFT`**。写 `RIGHT` 会把左边缘贴上去、整段往右溢出 |
 | **圆角窗体上叠方形标题栏，角戳出圆角外沿** | 三层叠法：`shell`(圆角浅底) + `body`(白色方块盖下半) + `outline`(圆角只描边) |
 | 上下留白不均 | 内容 add 完后统一 `shift(DOWN * x)`，最后一次调。**卡下方挂了 caption 等非对称元素时改用 `board.move_to([0,0,0])`**——`shift` 偏移量是在对称版面上量的 |
 | **`arrange(aligned_edge=CENTER)` 报 `NameError: CENTER`** | 0.21.0 **没有 `CENTER` 常量**（只有 `UP/DOWN/LEFT/RIGHT/ORIGIN`）。居中用 `arrange(DOWN, buff=0.3, center=True)`——`arrange` 有 `center: bool` 参数 |
 | **手填 `move_to` 坐标排版，换文案就重叠/被裁** | 一律用 `next_to(参照物, 方向, buff=…)` 按**实际边界**串版面；最后 `board.move_to([0,0,0])` 垂直居中。金句卡模板见 `wechat-cover-layouts.md` |
-| **`set_x` / `set_y` 拿来做对齐 ⇒ 整组版面被推歪** | `set_x` 设的是**中心**不是边界：左贴安全线要 `align_to([x,0], LEFT)`。实测不报错、`gap`/`fit_board` 全都"正常"、看图还像故意的缩进，只有量像素才看得见。事故链 + 像素自检法见 `wechat-cover-layouts.md` 末尾「两个静默坑」 |
+| **单轴定位 `set_x`/`set_y`/`align_to` 用错 ⇒ 版面推歪 / 元素堆同一行** | `set_x` 设的是**中心**不是边界，贴线要 `move_to([x,0,0], aligned_edge=LEFT)`；`align_to(pt, ·)` **只动一个轴，另一轴的坐标被忽略**。实测不报错、`gap`/`fit_board` 全都"正常"、看图还像故意的缩进，只有量像素才看得见。事故链 + 像素自检法见 `wechat-cover-cards.md` 列对齐小节、`wechat-cover-layouts.md` 末尾「两个静默坑」 |
 
 ## 七、自检清单（渲染后必须亲眼看图）
 
