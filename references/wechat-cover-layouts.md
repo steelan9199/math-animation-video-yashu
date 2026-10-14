@@ -242,25 +242,32 @@ class QuoteCover(Scene):            # 类名必须 ASCII
 ### 2. 交付前用像素量 bbox，不要靠屏幕目测
 
 本机读图工具会把 1800 px 宽的封面**缩放显示**（约 ×0.6），照屏幕数像素必错
-（本次目测"左边距 ≈ 200 px"，实测 **69 px**，差点按错的数去改版面）。
+（本次目测"左边距 ≈ 200 px"，实测 **65 px**，差点按错的数去改版面）。
 
 ```python
 from PIL import Image; import numpy as np
 a = np.array(Image.open(PNG).convert("RGB")).astype(int); nw = a.sum(2) < 730
 xs = np.where(nw.any(0))[0]; ys = np.where(nw.any(1))[0]
-print("留白 左%d 右%d 上%d 下%d" % (xs.min(), a.shape[1]-1-xs.max(), ys.min(), a.shape[0]-1-ys.max()))
+print("margin L=%d R=%d T=%d B=%d" % (xs.min(), a.shape[1]-1-xs.max(), ys.min(), a.shape[0]-1-ys.max()))
 ```
 
 2.35:1 @1800 宽下，§五 的 `M=0.52` 对应 **≈66 px**，四边应近似相等。
-**关键第二步：看左区各行最左非白 x 是否一致**——不一致就是某个元素没贴住左边距（坑 1 就是这样抓出来的）：
+**关键第二步：看左区各元素的左边界是否一致**——不一致就是某个元素没贴住左边距（坑 1 就是这样抓出来的）。
+**按「视觉行分块」量**，**别按「每行最左像素分档」**：字形轮廓会让同一行反复跳档
+（实测主标一行内 `xmin` 在 66~189 px 间摆动，字母 A 的斜边所致），看着像"元素没对齐"，
+实则整块 `xmin` 一直是 66，照分档改就白改。
+`print` 标签**一律用 ASCII**：中文经重定向后乱码，**数字还会被吞**。
 
 ```python
-prof = {}
-for y in range(a.shape[0]):
-    c = np.where(nw[y][:900])[0]          # 只扫左区
-    if len(c): prof.setdefault(c.min()//20*20, []).append(y)
-for k in sorted(prof): print("左边界≈%4dpx  y[%d,%d]" % (k, min(prof[k]), max(prof[k])))
+blocks, inb, s = [], False, 0
+for y in range(nw.shape[0]):
+    if nw[y][:900].any():
+        if not inb: s, inb = y, True
+    elif inb: blocks.append((s, y - 1)); inb = False
+for a0, b0 in blocks:                     # 每块 = 一个视觉行（一个元素）
+    c = np.where(nw[a0:b0 + 1, :900].any(0))[0]
+    print("row y[%d,%d] x[%d,%d]" % (a0, b0, c.min(), c.max()))
 ```
 
-修好后这张封面实测：留白左 69 / 右 69 / 上 80 / 下 80 px，左区所有行左边界都落在 60~80 px 一档。
+修好后实测：留白 65 / 65 / 72 / 72 px，左区各视觉行 `x.min` 全在 65~66 px（一致 ⇒ 全部贴住安全线）。
 
