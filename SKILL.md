@@ -1,7 +1,7 @@
 ---
 name: math-animation-video-yashu
 description: 生成公众号封面图/头图、教学动画视频(MP4)、流程图/架构图/甘特图/鱼骨图等图表。典型触发表达包括:`生成公众号封面`、`做公众号封面图`、`公众号头图`、`生成数学动画`、`把公式做成动画`、`画流程图`、`画架构图`；画图、排版封面、公式可视化均命中。
-version: 1.14.0
+version: 1.15.0
 ---
 
 # 数学动画视频（math-animation-video）
@@ -156,6 +156,14 @@ $P = "D:\software\uv\envs\py314-cpu\Scripts\python_direct.exe"
 `three_blue_one_brown` 深灰`#1C1C1C`（科普/大学）、`textbook` 浅灰`#F5F5F5`（教材）、
 `playful` 暖黄`#FFF8E1`（小学低龄）、`dark_tech` 纯黑`#000000`（竞赛/CS/真 3D）、
 `blackboard` 深绿`#2D5016`（模拟课堂）。
+
+**渲染器只用 cairo（CPU），不要为了"上 GPU"切 opengl。** 本机 GPU 路径实测可用
+（`--renderer=opengl` 真落在 RTX 4060 Ti / OpenGL 3.3，单帧 3 s、与 cairo 同速，小场景出视频 4 s vs cairo 3 s），
+但它带两条**静默失败**：① 出视频**必须**显式加 `--write_to_movie`（opengl 专属开关），
+否则退出码 0、日志照打 `Rendered`、**磁盘上一个文件都没有**；
+② **忽略场景内 `self.camera.background_color`**，白底场景输出全黑（实测角点 RGB=(0,0,0)）——
+六种风格全靠这一行改底色，要 opengl 出白底得改用模块顶层 `config.background_color`。
+**大场景想靠 GPU 提速前先量一遍**：小场景实测 opengl 并不比 cairo 快。
 
 ## 七、文档路由（按需读，别通读；⚠️ 标记的先 Grep 局部读）
 | 文件 | 什么时候读 |
